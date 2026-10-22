@@ -300,8 +300,13 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
 
         viewModelScope.launch {
             repo.deployWorkflow(wfJson).onSuccess { msg ->
-                _builderOutput.value += "✅ $msg"
+                _builderOutput.value += "✅ $msg\n"
+                _builderOutput.value += "✅ Deployment Complete. This workflow is now LIVE!\n"
                 _statusBanner.value = "Workflow Deployed Successfully!"
+                
+                // CRITICAL FIX: Clear the JSON so the Deploy button disappears
+                _lastGeneratedWfJson.value = null
+                
             }.onFailure { err ->
                 _builderOutput.value += "❌ Deploy Failed: ${err.message}"
             }
