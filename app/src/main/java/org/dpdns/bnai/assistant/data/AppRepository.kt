@@ -75,5 +75,24 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun testWorkflow(workflowJson: JsonObject): Result<Boolean> {
+        return try {
+            val payload = JsonObject().apply { add("workflow_json", workflowJson) }
+            val resp = api.testWorkflow(payload)
+            if (resp.isSuccessful) {
+                val status = resp.body()?.get("status")?.toString()?.replace("\"", "")
+                if (status == "passed") {
+                    Result.success(true)
+                } else {
+                    val err = resp.body()?.get("error")?.toString()?.replace("\"", "") ?: "Sandbox Error"
+                    Result.failure(Exception(err))
+                }
+            } else {
+                val err = resp.errorBody()?.string() ?: "HTTP ${resp.code()}"
+                Result.failure(Exception(err))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun checkBackendHealth(): Boolean = try { api.checkHealth().isSuccessful } catch (e: Exception) { false }
 }
