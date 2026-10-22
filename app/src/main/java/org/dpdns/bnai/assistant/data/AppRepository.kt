@@ -94,5 +94,81 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun fetchTasks(): Result<List<TaskItemUi>> {
+        return try {
+            val resp = api.getTasks()
+            if (resp.isSuccessful && resp.body() != null) {
+                val body = resp.body()!!
+                val status = body.get("status")?.asString
+                if (status == "completed") {
+                    val arr = body.getAsJsonArray("tasks") ?: return Result.success(emptyList())
+                    val tasks = arr.map { 
+                        val obj = it.asJsonObject
+                        TaskItemUi(
+                            id = obj.get("id")?.asString ?: "",
+                            title = obj.get("title")?.asString ?: "Untitled",
+                            status = obj.get("status")?.asString ?: "unknown",
+                            priority = obj.get("priority")?.asString ?: "normal",
+                            createdAt = obj.get("created_at")?.asString ?: "",
+                            updatedAt = obj.get("updated_at")?.asString ?: ""
+                        )
+                    }
+                    Result.success(tasks)
+                } else {
+                    Result.failure(Exception("Backend returned failed status"))
+                }
+            } else {
+                val err = resp.errorBody()?.string() ?: "HTTP ${resp.code()}"
+                Result.failure(Exception(err))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun fetchMemory(scope: String, projectId: String?): Result<List<MemoryItemUi>> {
+        return try {
+            val payload = JsonObject().apply { 
+                addProperty("scope", scope) 
+                if (projectId != null) addProperty("project_id", projectId)
+            }
+            val resp = api.readMemory(payload)
+            if (resp.isSuccessful && resp.body() != null) {
+                val body = resp.body()!!
+                val status = body.get("status")?.asString
+                if (status == "completed") {
+                    val arr = body.getAsJsonArray("memory_items") ?: return Result.success(emptyList())
+                    val items = arr.map {
+                        val obj = it.asJsonObject
+                        MemoryItemUi(
+                            id = obj.get("id")?.asString ?: "",
+                            scope = obj.get("scope")?.asString ?: "",
+                            key = obj.get("key")?.asString,
+                            content = obj.get("content")?.asString ?: "",
+                            category = obj.get("category")?.asString ?: "general",
+                            createdAt = obj.get("created_at")?.asString ?: ""
+                        )
+                    }
+                    Result.success(items)
+                } else {
+                    Result.failure(Exception("Backend returned failed status"))
+                }
+            } else {
+                val err = resp.errorBody()?.string() ?: "HTTP ${resp.code()}"
+                Result.failure(Exception(err))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun fetchOwnerDashboard(): Result<JsonObject> {
+        return try {
+            val resp = api.getOwnerDashboard()
+            if (resp.isSuccessful && resp.body() != null) {
+                Result.success(resp.body()!!)
+            } else {
+                val err = resp.errorBody()?.string() ?: "HTTP ${resp.code()}"
+                Result.failure(Exception(err))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun checkBackendHealth(): Boolean = try { api.checkHealth().isSuccessful } catch (e: Exception) { false }
 }
