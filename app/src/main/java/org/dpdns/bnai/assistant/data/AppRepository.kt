@@ -48,16 +48,30 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun executeGatewayIntent(intent: String, payloadObj: JsonObject): Result<GatewayExecuteResponse> {
+    suspend fun executeGatewayIntent(intent: String, payloadObj: JsonObject, projectId: String?): Result<GatewayExecuteResponse> {
         val reqId = newRequestId()
         return try {
-            val req = GatewayExecuteRequest(reqId, tokenManager.getUserId(), tokenManager.getWorkspaceId(), null, null, intent, "manual", payloadObj)
+            val req = GatewayExecuteRequest(reqId, tokenManager.getUserId(), tokenManager.getWorkspaceId(), projectId, null, intent, "manual", payloadObj)
             val resp = api.executeWorkflow(req)
             if (resp.isSuccessful && resp.body() != null) {
                 Result.success(resp.body()!!)
             } else {
                 Result.failure(Exception("Intent $intent failed: HTTP ${resp.code()}"))
             }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun saveWorkflowMemory(workflowJson: String, projectId: String?): Result<Boolean> {
+        return try {
+            val req = MemoryWriteRequest(
+                scope = "workflow",
+                key = "generated_wf_${System.currentTimeMillis()}",
+                content = workflowJson,
+                category = "generated_code",
+                projectId = projectId
+            )
+            val resp = api.saveMemory(req)
+            if (resp.isSuccessful) Result.success(true) else Result.failure(Exception("Memory save failed: HTTP ${resp.code()}"))
         } catch (e: Exception) { Result.failure(e) }
     }
 

@@ -18,6 +18,7 @@ interface ApiService {
     @POST("api/v1/ai/execute") suspend fun executeWorkflow(@Body request: GatewayExecuteRequest): Response<GatewayExecuteResponse>
     @GET("health") suspend fun checkHealth(): Response<JsonObject>
     @POST("api/v1/owner/action") suspend fun executeOwnerAction(@Body payload: JsonObject): Response<JsonObject>
+    @POST("api/v1/memory/write") suspend fun saveMemory(@Body request: MemoryWriteRequest): Response<JsonObject>
 
     companion object {
         fun create(tokenManager: TokenManager): ApiService {

@@ -14,3 +14,12 @@ data class GatewayExecuteResponse(@SerializedName("request_id") val requestId: S
 data class ChatMessageUi(val id: String, val role: String, val content: String, val timestamp: String, val verificationStatus: String = "verified", val provider: String = "system", val isError: Boolean = false)
 data class ProjectUi(val id: String, val name: String)
 data class SkillUi(val key: String, val name: String)
+
+// Memory Request
+data class MemoryWriteRequest(
+    val scope: String,
+    val key: String?,
+    val content: String,
+    val category: String,
+    @SerializedName("project_id") val projectId: String? = null
+)

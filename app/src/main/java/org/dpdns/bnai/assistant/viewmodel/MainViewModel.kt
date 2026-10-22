@@ -73,11 +73,10 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         var currentText = ""
         _messages.value = _messages.value + ChatMessageUi(tempId, "assistant", "", "typing", "typing", provider)
         
-        // Character by character (smooth, no word breaking)
         for (char in fullText) {
             currentText += char
             _messages.value = _messages.value.map { if (it.id == tempId) it.copy(content = currentText) else it }
-            delay(8) // Fast typing (8ms)
+            delay(8) 
         }
         _messages.value = _messages.value.map { if (it.id == tempId) it.copy(verificationStatus = verification, timestamp = "Just now") else it }
     }
@@ -142,7 +141,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                 var wfJsonObj = currentWfJson.asJsonObject
                 _builderOutput.value += "✅ Workflow Generated!\n\n"
 
-                // STRICT 5 ATTEMPTS LOOP (Blueprint v1.6 Part 13)
                 var attempt = 0
                 var passed = false
                 
