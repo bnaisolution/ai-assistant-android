@@ -19,6 +19,7 @@ interface ApiService {
     @GET("health") suspend fun checkHealth(): Response<JsonObject>
     @POST("api/v1/owner/action") suspend fun executeOwnerAction(@Body payload: JsonObject): Response<JsonObject>
     @POST("api/v1/memory/write") suspend fun saveMemory(@Body request: MemoryWriteRequest): Response<JsonObject>
+    @POST("api/v1/n8n/test-workflow") suspend fun testWorkflow(@Body request: JsonObject): Response<JsonObject>
 
     companion object {
         fun create(tokenManager: TokenManager): ApiService {

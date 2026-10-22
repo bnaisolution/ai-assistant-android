@@ -72,7 +72,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         val tempId = UUID.randomUUID().toString()
         var currentText = ""
         _messages.value = _messages.value + ChatMessageUi(tempId, "assistant", "", "typing", "typing", provider)
-        
         for (char in fullText) {
             currentText += char
             _messages.value = _messages.value.map { if (it.id == tempId) it.copy(content = currentText) else it }
@@ -115,7 +114,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     fun buildWorkflow(requirements: String) {
         if (requirements.isBlank()) return
         _isBuilding.value = true
-        _builderOutput.value = "🚀 Starting Generation Cycle...\n"
+        _builderOutput.value = "🚀 Starting Smart Hybrid Cycle...\n"
         val pid = _selectedProject.value.id
 
         viewModelScope.launch {
@@ -130,47 +129,76 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                 if (genRes.isFailure) throw Exception("Generation failed: ${genRes.exceptionOrNull()?.message}")
                 
                 val childObj = genRes.getOrNull()?.result?.get("child_result")
-                if (childObj == null || !childObj.isJsonObject) {
-                    throw Exception("Invalid response from backend. Check WF-02.")
-                }
+                if (childObj == null || !childObj.isJsonObject) throw Exception("Invalid response from backend.")
+                
                 val currentWfJson = childObj.asJsonObject.get("generated_workflow_json")
-                if (currentWfJson == null || !currentWfJson.isJsonObject) {
-                    throw Exception("No workflow JSON generated. AI failed.")
-                }
+                if (currentWfJson == null || !currentWfJson.isJsonObject) throw Exception("No workflow JSON generated.")
                 
                 var wfJsonObj = currentWfJson.asJsonObject
                 _builderOutput.value += "✅ Workflow Generated!\n\n"
 
                 var attempt = 0
                 var passed = false
+                var lastError = "Unknown Error"
                 
                 while (attempt < 5) {
                     attempt++
-                    _builderOutput.value += "🔍 Validating (WF-04) | Attempt #${attempt}...\n"
+                    _builderOutput.value += "🔍 Attempt #${attempt} | Static Check (WF-04)...\n"
+                    
                     val valPayload = JsonObject().apply {
                         add("workflow_json", wfJsonObj)
                         addProperty("target_n8n_version", "1.80.0")
                     }
-                    
                     val valRes = repo.executeGatewayIntent("VALIDATE_WORKFLOW", valPayload, pid)
                     val valChild = valRes.getOrNull()?.result?.get("child_result")
+                    
                     val valStatus = if(valChild != null && valChild.isJsonObject) valChild.asJsonObject.get("validation_status")?.asString else "failed"
+                    val failedTests = if(valChild != null && valChild.isJsonObject) valChild.asJsonObject.getAsJsonArray("failed_tests") else null
+                    
+                    val staticPassed = (valStatus == "passed") || (valStatus == "partial" && (failedTests == null || failedTests.size() == 0))
 
-                    if (valStatus == "passed") {
-                        passed = true
-                        _builderOutput.value += "✅ Validation Passed!\n\n"
+                    if (staticPassed) {
+                        _builderOutput.value += "✅ Static Check Passed. Moving to Real Sandbox...\n"
+                        val testRes = repo.testWorkflow(wfJsonObj)
+                        
+                        if (testRes.isSuccess) {
+                            passed = true
+                            _builderOutput.value += "✅ Real Sandbox Test Passed!\n\n"
+                            break
+                        } else {
+                            lastError = testRes.exceptionOrNull()?.message ?: "Sandbox Error"
+                            _builderOutput.value += "❌ Sandbox Failed: $lastError\n"
+                        }
+                    } else {
+                        lastError = failedTests?.toString() ?: "Static Validation Failed"
+                        _builderOutput.value += "❌ Static Check Failed.\n"
+                    }
+
+                    if (attempt >= 5) {
+                        _builderOutput.value += "❌ Max 5 attempts reached. Stopping Loop.\n"
                         break
                     }
 
-                    if (attempt == 5) {
-                        _builderOutput.value += "❌ Max 5 attempts reached. Validation failed.\n"
-                        break
+                    _builderOutput.value += "🧠 Analyzing Error via WF-01...\n"
+                    val debugPayload = JsonObject().apply {
+                        add("workflow_json", wfJsonObj)
+                        addProperty("analysis_mode", "debug_error")
+                        addProperty("error_logs", lastError)
                     }
+                    val debugRes = repo.executeGatewayIntent("ANALYZE_WORKFLOW", debugPayload, pid)
+                    val debugChild = debugRes.getOrNull()?.result?.get("child_result")
+                    
+                    var analysisResult = "Fix the validation errors."
+                    if (debugChild != null && debugChild.isJsonObject) {
+                        val analysis = debugChild.asJsonObject.get("workflow_summary")
+                        if (analysis != null && !analysis.isJsonNull) analysisResult = analysis.asString
+                    }
+                    _builderOutput.value += "📋 Root Cause: ${analysisResult.take(50)}...\n"
 
-                    _builderOutput.value += "⚠️ Issues found. Auto-repairing via WF-03 (Attempt #$attempt)...\n"
+                    _builderOutput.value += "⚠️ Auto-repairing via WF-03...\n"
                     val updPayload = JsonObject().apply {
                         add("original_workflow_json", wfJsonObj)
-                        addProperty("requested_changes", "Fix validation errors.")
+                        addProperty("requested_changes", "Fix errors based on this analysis: $analysisResult")
                     }
                     val updRes = repo.executeGatewayIntent("UPDATE_WORKFLOW", updPayload, pid)
                     val updChild = updRes.getOrNull()?.result?.get("child_result")
@@ -189,20 +217,27 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     }
                 }
 
-                _builderOutput.value += "\n--- FINAL WORKFLOW JSON ---\n"
-                _builderOutput.value += wfJsonObj.toString()
-                
                 if (passed) {
+                    _builderOutput.value += "\n--- FINAL PRODUCTION WORKFLOW JSON ---\n"
+                    _builderOutput.value += wfJsonObj.toString()
                     _builderOutput.value += "\n\n🧠 Saving workflow to Memory (Layer 3)..."
                     repo.saveWorkflowMemory(wfJsonObj.toString(), pid).onSuccess {
                         _builderOutput.value += " ✅ Saved!"
                     }.onFailure {
                         _builderOutput.value += " ❌ Failed: ${it.message}"
                     }
+                } else {
+                    _builderOutput.value += "\n\n🚨 HUMAN CONFIRMATION REQUIRED 🚨\n"
+                    _builderOutput.value += "System failed after 5 attempts.\n"
+                    _builderOutput.value += "Last Error: $lastError\n\n"
+                    _builderOutput.value += "OPTIONS:\n"
+                    _builderOutput.value += "[1] Retry with better prompt\n"
+                    _builderOutput.value += "[2] Edit Manually (Coming Soon)\n"
+                    _builderOutput.value += "[3] Save as Draft"
                 }
 
             } catch (e: Exception) {
-                _builderOutput.value += "\n❌ ERROR: ${e.message}"
+                _builderOutput.value += "\n❌ SYSTEM ERROR: ${e.message}"
             } finally {
                 _isBuilding.value = false
             }
