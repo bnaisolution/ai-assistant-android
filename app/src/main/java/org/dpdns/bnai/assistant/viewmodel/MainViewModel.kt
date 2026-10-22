@@ -132,7 +132,10 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                 if (childObj == null || !childObj.isJsonObject) throw Exception("Invalid response from backend.")
                 
                 val currentWfJson = childObj.asJsonObject.get("generated_workflow_json")
-                if (currentWfJson == null || !currentWfJson.isJsonObject) throw Exception("No workflow JSON generated.")
+                if (currentWfJson == null || !currentWfJson.isJsonObject) {
+                    val errDetails = childObj.toString().take(200)
+                    throw Exception("WF-02 failed. Details: $errDetails")
+                }
                 
                 var wfJsonObj = currentWfJson.asJsonObject
                 _builderOutput.value += "✅ Workflow Generated!\n\n"
