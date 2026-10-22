@@ -1,6 +1,7 @@
 package org.dpdns.bnai.assistant.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +22,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _backendHealthy = MutableStateFlow(true)
     val backendHealthy: StateFlow<Boolean> = _backendHealthy.asStateFlow()
 
-    // Context States (v1.6 Part 3)
     val projects = listOf(ProjectUi("11111111-1111-1111-1111-111111111111", "Default Project"))
     private val _selectedProject = MutableStateFlow(projects.first())
     val selectedProject: StateFlow<ProjectUi> = _selectedProject.asStateFlow()
@@ -39,6 +39,8 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _messages = MutableStateFlow(listOf(ChatMessageUi("welcome", "assistant", "Namaste! Main aapka BNAI Assistant (v3.0) hun. Aaj kis project par kaam karein?", "Ready", "verified", "system")))
     val messages: StateFlow<List<ChatMessageUi>> = _messages.asStateFlow()
 
+    private var currentConversationId: String? = null
+
     init { viewModelScope.launch { _backendHealthy.value = repo.checkBackendHealth() } }
 
     fun login(email: String, pass: String) {
@@ -49,12 +51,34 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         }
     }
 
-    fun logout() { repo.tokenManager.clearSession(); _isLoggedIn.value = false }
+    fun logout() { repo.tokenManager.clearSession(); _isLoggedIn.value = false; currentConversationId = null }
     fun clearBanner() { _statusBanner.value = null }
     fun selectProject(p: ProjectUi) { _selectedProject.value = p }
     fun selectSkill(s: SkillUi) { _selectedSkill.value = s }
     fun toggleCeoMode(enabled: Boolean) { _ceoMode.value = enabled }
     fun toggleFastPath(enabled: Boolean) { _useFastPath.value = enabled }
+
+    fun startNewChat() {
+        currentConversationId = null
+        _messages.value = listOf(ChatMessageUi("welcome", "assistant", "Nayi chat shuru! Main aapki kya madad kar sakta hoon?", "Now", "verified", "system"))
+    }
+
+    private suspend fun simulateTypewriter(fullText: String, provider: String, verification: String) {
+        val tempId = UUID.randomUUID().toString()
+        var currentText = ""
+        _messages.value = _messages.value + ChatMessageUi(tempId, "assistant", "", "typing", "typing", provider)
+        
+        for (char in fullText) {
+            currentText += char
+            _messages.value = _messages.value.map {
+                if (it.id == tempId) it.copy(content = currentText) else it
+            }
+            delay(15) // 15ms typing delay
+        }
+        _messages.value = _messages.value.map {
+            if (it.id == tempId) it.copy(verificationStatus = verification, timestamp = "Just now") else it
+        }
+    }
 
     fun sendChatMessage(userText: String) {
         if (userText.isBlank()) return
@@ -66,18 +90,24 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
             val sk = _selectedSkill.value.key
             val ceo = _ceoMode.value
 
-            val result = if (_useFastPath.value) {
-                repo.sendFastChat(userText, pid, null, sk, ceo)
+            if (_useFastPath.value) {
+                repo.sendFastChat(userText, pid, currentConversationId, sk, ceo).onSuccess { (msg, convId) ->
+                    if (convId != null) currentConversationId = convId
+                    _isLoading.value = false
+                    simulateTypewriter(msg.content, msg.provider, msg.verificationStatus)
+                }.onFailure { 
+                    _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "assistant", "Error: ${it.message}", "Now", "failed", "system", isError = true) 
+                    _isLoading.value = false
+                }
             } else {
-                repo.sendGatewayChat(userText, pid, null)
+                repo.sendGatewayChat(userText, pid, currentConversationId).onSuccess { 
+                    _isLoading.value = false
+                    simulateTypewriter(it.content, it.provider, it.verificationStatus)
+                }.onFailure { 
+                    _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "assistant", "Error: ${it.message}", "Now", "failed", "system", isError = true) 
+                    _isLoading.value = false
+                }
             }
-
-            result.onSuccess { 
-                _messages.value = _messages.value + it 
-            }.onFailure { 
-                _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "assistant", "Error: ${it.message}", "Now", isError = true) 
-            }
-            _isLoading.value = false
         }
     }
 }

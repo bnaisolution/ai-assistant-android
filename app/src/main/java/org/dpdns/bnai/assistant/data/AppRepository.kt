@@ -18,14 +18,15 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun sendFastChat(message: String, projectId: String?, convId: String?, skillKey: String, ceoMode: Boolean): Result<ChatMessageUi> {
+    suspend fun sendFastChat(message: String, projectId: String?, convId: String?, skillKey: String, ceoMode: Boolean): Result<Pair<ChatMessageUi, String?>> {
         val reqId = newRequestId()
         return try {
             val req = FastChatRequest(reqId, message, tokenManager.getUserId(), tokenManager.getWorkspaceId(), projectId, convId, skillKey, ceoMode)
             val resp = api.fastChat(req)
             if (resp.isSuccessful && resp.body() != null) {
                 val b = resp.body()!!
-                Result.success(ChatMessageUi(reqId, "assistant", b.reply ?: b.message ?: "Verified response.", "Just now", b.verification?.status ?: "verified", b.provider ?: "groq"))
+                val msg = ChatMessageUi(reqId, "assistant", b.reply ?: b.message ?: "Verified response.", "Just now", b.verification?.status ?: "verified", b.provider ?: "groq")
+                Result.success(Pair(msg, b.conversationId))
             } else { Result.failure(Exception("Fast Chat failed: HTTP ${resp.code()}")) }
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -43,8 +44,7 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                     val text = child?.get("assistant_message")?.asString ?: "Gateway Success (No msg)"
                     Result.success(ChatMessageUi(reqId, "assistant", text, "Just now", b.verification?.status ?: "verified", "n8n-gateway"))
                 } else {
-                    val err = b.errors?.firstOrNull()?.message ?: "Gateway Error"
-                    Result.failure(Exception(err))
+                    Result.failure(Exception(b.errors?.firstOrNull()?.message ?: "Gateway Error"))
                 }
             } else { Result.failure(Exception("Gateway failed: HTTP ${resp.code()}")) }
         } catch (e: Exception) { Result.failure(e) }

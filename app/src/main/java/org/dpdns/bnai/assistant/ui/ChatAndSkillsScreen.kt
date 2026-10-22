@@ -3,7 +3,10 @@ package org.dpdns.bnai.assistant.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,7 +21,6 @@ import org.dpdns.bnai.assistant.viewmodel.MainViewModel
 fun ChatAndSkillsScreen(viewModel: MainViewModel) {
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    
     val useFastPath by viewModel.useFastPath.collectAsState()
     val ceoMode by viewModel.ceoMode.collectAsState()
     val selectedProject by viewModel.selectedProject.collectAsState()
@@ -28,14 +30,19 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
     var showProjectMenu by remember { mutableStateOf(false) }
     var showSkillMenu by remember { mutableStateOf(false) }
 
+    // Auto-scroll logic
+    val listState = rememberLazyListState()
+    LaunchedEffect(messages.size, isLoading) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size) // Scroll to bottom
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        // Top Controls (Blueprint v1.6 Part 3)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
+        // Top Controls
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Column(modifier = Modifier.padding(10.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Box {
                         OutlinedButton(onClick = { showProjectMenu = true }) { Text("Project: ${selectedProject.name}", fontSize = 11.sp) }
                         DropdownMenu(expanded = showProjectMenu, onDismissRequest = { showProjectMenu = false }) {
@@ -56,9 +63,8 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(text = if (useFastPath) "Fast Path (Groq)" else "n8n Gateway", fontSize = 11.sp)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = ceoMode, onCheckedChange = { viewModel.toggleCeoMode(it) })
-                        Text("CEO Mode", fontSize = 11.sp)
+                    IconButton(onClick = { viewModel.startNewChat() }, modifier = Modifier.size(32.dp)) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "New Chat", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -67,7 +73,7 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
         Spacer(modifier = Modifier.height(8.dp))
 
         // Chat List
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(messages, key = { it.id }) { msg ->
                 val isUser = msg.role == "user"
                 Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = if (isUser) Alignment.End else Alignment.Start) {
@@ -78,9 +84,24 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(text = msg.content, fontSize = 14.sp)
-                            if (!isUser) {
+                            if (!isUser && msg.verificationStatus != "typing") {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(text = "Provider: ${msg.provider} | Status: ${msg.verificationStatus}", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Thinking Indicator
+            if (isLoading) {
+                item {
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.widthIn(max = 320.dp)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = "AI is thinking...", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }
@@ -92,10 +113,9 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = inputText, onValueChange = { inputText = it }, placeholder = { Text("Type a message...") }, modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = { val q = inputText; inputText = ""; viewModel.sendChatMessage(q) },
-                enabled = !isLoading && inputText.isNotBlank()
-            ) { Text(if (isLoading) "..." else "Send") }
+            Button(onClick = { val q = inputText; inputText = ""; viewModel.sendChatMessage(q) }, enabled = !isLoading && inputText.isNotBlank()) {
+                Text(if (isLoading) "..." else "Send")
+            }
         }
     }
 }
