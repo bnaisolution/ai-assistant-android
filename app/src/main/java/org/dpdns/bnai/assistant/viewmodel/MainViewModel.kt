@@ -72,10 +72,12 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         val tempId = UUID.randomUUID().toString()
         var currentText = ""
         _messages.value = _messages.value + ChatMessageUi(tempId, "assistant", "", "typing", "typing", provider)
+        
+        // Character by character (smooth, no word breaking)
         for (char in fullText) {
             currentText += char
             _messages.value = _messages.value.map { if (it.id == tempId) it.copy(content = currentText) else it }
-            delay(15)
+            delay(8) // Fast typing (8ms)
         }
         _messages.value = _messages.value.map { if (it.id == tempId) it.copy(verificationStatus = verification, timestamp = "Just now") else it }
     }
@@ -115,6 +117,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         if (requirements.isBlank()) return
         _isBuilding.value = true
         _builderOutput.value = "🚀 Starting Generation Cycle...\n"
+        val pid = _selectedProject.value.id
 
         viewModelScope.launch {
             try {
@@ -124,31 +127,36 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     addProperty("target_n8n_version", "1.80.0")
                 }
                 
-                val genRes = repo.executeGatewayIntent("GENERATE_WORKFLOW", genPayload)
+                val genRes = repo.executeGatewayIntent("GENERATE_WORKFLOW", genPayload, pid)
                 if (genRes.isFailure) throw Exception("Generation failed: ${genRes.exceptionOrNull()?.message}")
                 
-                // BUG FIX: Correct JSON Path (child_result -> result -> generated_workflow_json)
-                var currentWfJson = genRes.getOrNull()?.result
-                    ?.getAsJsonObject("child_result")
-                    ?.getAsJsonObject("result")
-                    ?.getAsJsonObject("generated_workflow_json")
-                    
-                if (currentWfJson == null) throw Exception("No workflow JSON generated.")
+                val childObj = genRes.getOrNull()?.result?.get("child_result")
+                if (childObj == null || !childObj.isJsonObject) {
+                    throw Exception("Invalid response from backend. Check WF-02.")
+                }
+                val currentWfJson = childObj.asJsonObject.get("generated_workflow_json")
+                if (currentWfJson == null || !currentWfJson.isJsonObject) {
+                    throw Exception("No workflow JSON generated. AI failed.")
+                }
                 
+                var wfJsonObj = currentWfJson.asJsonObject
                 _builderOutput.value += "✅ Workflow Generated!\n\n"
 
+                // STRICT 5 ATTEMPTS LOOP (Blueprint v1.6 Part 13)
                 var attempt = 0
                 var passed = false
-                while (attempt < 5 && !passed) {
-                    _builderOutput.value += "🔍 Validating (WF-04) | Attempt #${attempt + 1}...\n"
+                
+                while (attempt < 5) {
+                    attempt++
+                    _builderOutput.value += "🔍 Validating (WF-04) | Attempt #${attempt}...\n"
                     val valPayload = JsonObject().apply {
-                        add("workflow_json", currentWfJson)
+                        add("workflow_json", wfJsonObj)
                         addProperty("target_n8n_version", "1.80.0")
                     }
                     
-                    val valRes = repo.executeGatewayIntent("VALIDATE_WORKFLOW", valPayload)
-                    val valResult = valRes.getOrNull()?.result?.getAsJsonObject("child_result")?.getAsJsonObject("result")
-                    val valStatus = valResult?.get("validation_status")?.asString ?: "failed"
+                    val valRes = repo.executeGatewayIntent("VALIDATE_WORKFLOW", valPayload, pid)
+                    val valChild = valRes.getOrNull()?.result?.get("child_result")
+                    val valStatus = if(valChild != null && valChild.isJsonObject) valChild.asJsonObject.get("validation_status")?.asString else "failed"
 
                     if (valStatus == "passed") {
                         passed = true
@@ -156,30 +164,44 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                         break
                     }
 
-                    attempt++
-                    if (attempt >= 5) {
+                    if (attempt == 5) {
                         _builderOutput.value += "❌ Max 5 attempts reached. Validation failed.\n"
                         break
                     }
 
                     _builderOutput.value += "⚠️ Issues found. Auto-repairing via WF-03 (Attempt #$attempt)...\n"
                     val updPayload = JsonObject().apply {
-                        add("original_workflow_json", currentWfJson)
+                        add("original_workflow_json", wfJsonObj)
                         addProperty("requested_changes", "Fix validation errors.")
                     }
-                    val updRes = repo.executeGatewayIntent("UPDATE_WORKFLOW", updPayload)
-                    val updatedWf = updRes.getOrNull()?.result?.getAsJsonObject("child_result")?.getAsJsonObject("result")?.getAsJsonObject("updated_workflow_json")
+                    val updRes = repo.executeGatewayIntent("UPDATE_WORKFLOW", updPayload, pid)
+                    val updChild = updRes.getOrNull()?.result?.get("child_result")
                     
-                    if (updatedWf != null) {
-                        currentWfJson = updatedWf
+                    if (updChild != null && updChild.isJsonObject) {
+                        val updatedWf = updChild.asJsonObject.get("updated_workflow_json")
+                        if (updatedWf != null && updatedWf.isJsonObject) {
+                            wfJsonObj = updatedWf.asJsonObject
+                        } else {
+                            _builderOutput.value += "❌ Auto-repair failed to return JSON.\n"
+                            break
+                        }
                     } else {
-                        _builderOutput.value += "❌ Auto-repair failed to return JSON.\n"
+                        _builderOutput.value += "❌ Auto-repair failed (Invalid response).\n"
                         break
                     }
                 }
 
                 _builderOutput.value += "\n--- FINAL WORKFLOW JSON ---\n"
-                _builderOutput.value += currentWfJson.toString()
+                _builderOutput.value += wfJsonObj.toString()
+                
+                if (passed) {
+                    _builderOutput.value += "\n\n🧠 Saving workflow to Memory (Layer 3)..."
+                    repo.saveWorkflowMemory(wfJsonObj.toString(), pid).onSuccess {
+                        _builderOutput.value += " ✅ Saved!"
+                    }.onFailure {
+                        _builderOutput.value += " ❌ Failed: ${it.message}"
+                    }
+                }
 
             } catch (e: Exception) {
                 _builderOutput.value += "\n❌ ERROR: ${e.message}"
