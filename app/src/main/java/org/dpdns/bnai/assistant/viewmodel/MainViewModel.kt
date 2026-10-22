@@ -18,6 +18,9 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _statusBanner = MutableStateFlow<String?>(null)
     val statusBanner: StateFlow<String?> = _statusBanner.asStateFlow()
 
+    private val _backendHealthy = MutableStateFlow(true)
+    val backendHealthy: StateFlow<Boolean> = _backendHealthy.asStateFlow()
+
     // Context States (v1.6 Part 3)
     val projects = listOf(ProjectUi("11111111-1111-1111-1111-111111111111", "Default Project"))
     private val _selectedProject = MutableStateFlow(projects.first())
@@ -36,7 +39,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _messages = MutableStateFlow(listOf(ChatMessageUi("welcome", "assistant", "Namaste! Main aapka BNAI Assistant (v3.0) hun. Aaj kis project par kaam karein?", "Ready", "verified", "system")))
     val messages: StateFlow<List<ChatMessageUi>> = _messages.asStateFlow()
 
-    init { viewModelScope.launch { repo.checkBackendHealth() } }
+    init { viewModelScope.launch { _backendHealthy.value = repo.checkBackendHealth() } }
 
     fun login(email: String, pass: String) {
         viewModelScope.launch {
@@ -63,7 +66,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
             val sk = _selectedSkill.value.key
             val ceo = _ceoMode.value
 
-            // Blueprint: Route based on path selection
             val result = if (_useFastPath.value) {
                 repo.sendFastChat(userText, pid, null, sk, ceo)
             } else {
