@@ -102,8 +102,9 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                 val status = body.get("status")?.asString
                 if (status == "completed") {
                     val arr = body.getAsJsonArray("tasks") ?: return Result.success(emptyList())
-                    val tasks = arr.map { 
-                        val obj = it.asJsonObject
+                    // FIX: Explicit element reference
+                    val tasks = arr.map { element -> 
+                        val obj = element.asJsonObject
                         TaskItemUi(
                             id = obj.get("id")?.asString ?: "",
                             title = obj.get("title")?.asString ?: "Untitled",
@@ -136,8 +137,9 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                 val status = body.get("status")?.asString
                 if (status == "completed") {
                     val arr = body.getAsJsonArray("memory_items") ?: return Result.success(emptyList())
-                    val items = arr.map {
-                        val obj = it.asJsonObject
+                    // FIX: Explicit element reference
+                    val items = arr.map { element ->
+                        val obj = element.asJsonObject
                         MemoryItemUi(
                             id = obj.get("id")?.asString ?: "",
                             scope = obj.get("scope")?.asString ?: "",

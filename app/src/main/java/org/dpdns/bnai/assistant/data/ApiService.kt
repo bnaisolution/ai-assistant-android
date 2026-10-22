@@ -20,6 +20,10 @@ interface ApiService {
     @POST("api/v1/owner/action") suspend fun executeOwnerAction(@Body payload: JsonObject): Response<JsonObject>
     @POST("api/v1/memory/write") suspend fun saveMemory(@Body request: MemoryWriteRequest): Response<JsonObject>
     @POST("api/v1/n8n/test-workflow") suspend fun testWorkflow(@Body request: JsonObject): Response<JsonObject>
+    
+    @GET("api/v1/tasks/list") suspend fun getTasks(): Response<JsonObject>
+    @POST("api/v1/memory/read") suspend fun readMemory(@Body payload: JsonObject): Response<JsonObject>
+    @GET("api/v1/owner/dashboard") suspend fun getOwnerDashboard(): Response<JsonObject>
 
     companion object {
         fun create(tokenManager: TokenManager): ApiService {
