@@ -43,10 +43,22 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                     val child = b.result?.getAsJsonObject("child_result")
                     val text = child?.get("assistant_message")?.asString ?: "Gateway Success (No msg)"
                     Result.success(ChatMessageUi(reqId, "assistant", text, "Just now", b.verification?.status ?: "verified", "n8n-gateway"))
-                } else {
-                    Result.failure(Exception(b.errors?.firstOrNull()?.message ?: "Gateway Error"))
-                }
+                } else { Result.failure(Exception(b.errors?.firstOrNull()?.message ?: "Gateway Error")) }
             } else { Result.failure(Exception("Gateway failed: HTTP ${resp.code()}")) }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    // NEW: Generic Gateway execution for WF Builder
+    suspend fun executeGatewayIntent(intent: String, payloadObj: JsonObject): Result<GatewayExecuteResponse> {
+        val reqId = newRequestId()
+        return try {
+            val req = GatewayExecuteRequest(reqId, tokenManager.getUserId(), tokenManager.getWorkspaceId(), null, null, intent, "manual", payloadObj)
+            val resp = api.executeWorkflow(req)
+            if (resp.isSuccessful && resp.body() != null) {
+                Result.success(resp.body()!!)
+            } else {
+                Result.failure(Exception("Intent $intent failed: HTTP ${resp.code()}"))
+            }
         } catch (e: Exception) { Result.failure(e) }
     }
 
