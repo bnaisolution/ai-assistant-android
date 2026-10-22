@@ -81,8 +81,7 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(
                             checked = useFastPath, 
-                            onCheckedChange = { viewModel.toggleFastPath(it) },
-                            modifier = Modifier.scale(0.8f)
+                            onCheckedChange = { viewModel.toggleFastPath(it) }
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -223,6 +222,3 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
         }
     }
 }
-
-// Helper for Switch scaling
-fun Modifier.scale(scale: Float): Modifier = this.then(androidx.compose.ui.draw.scale(scale))
