@@ -68,6 +68,11 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         _messages.value = listOf(ChatMessageUi("welcome", "assistant", "Nayi chat shuru! Main aapki kya madad kar sakta hoon?", "Now", "verified", "system"))
     }
 
+    // NEW: Clear Builder function
+    fun clearBuilder() {
+        _builderOutput.value = ""
+    }
+
     private suspend fun simulateTypewriter(fullText: String, provider: String, verification: String) {
         val tempId = UUID.randomUUID().toString()
         var currentText = ""
@@ -131,9 +136,10 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                 val childObj = genRes.getOrNull()?.result?.get("child_result")
                 if (childObj == null || !childObj.isJsonObject) throw Exception("Invalid response from backend.")
                 
+                // DEBUG FIX: Show real error if JSON is missing
                 val currentWfJson = childObj.asJsonObject.get("generated_workflow_json")
                 if (currentWfJson == null || !currentWfJson.isJsonObject) {
-                    val errDetails = childObj.toString().take(200)
+                    val errDetails = childObj.toString().take(300)
                     throw Exception("WF-02 failed. Details: $errDetails")
                 }
                 

@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,17 +38,34 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
                     minLines = 2
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { viewModel.buildWorkflow(requirements) },
-                    enabled = !isBuilding && requirements.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
+                
+                // Row for Generate & Clear
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (isBuilding) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Building & Repairing...")
-                    } else {
-                        Text("Generate Workflow")
+                    Button(
+                        onClick = { viewModel.buildWorkflow(requirements) },
+                        enabled = !isBuilding && requirements.isNotBlank(),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isBuilding) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Building...")
+                        } else {
+                            Text("Generate Workflow")
+                        }
+                    }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            requirements = ""
+                            viewModel.clearBuilder()
+                        },
+                        enabled = !isBuilding && (output.isNotEmpty() || requirements.isNotEmpty())
+                    ) {
+                        Text("Clear")
                     }
                 }
             }
@@ -60,7 +78,18 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("Execution Log & JSON", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Execution Log & JSON", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    if (output.isNotEmpty() && !isBuilding) {
+                        TextButton(onClick = { viewModel.clearBuilder() }) {
+                            Text("Clear Log", fontSize = 12.sp)
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
