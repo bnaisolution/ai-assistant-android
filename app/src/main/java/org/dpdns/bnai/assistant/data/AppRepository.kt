@@ -94,6 +94,27 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    // NEW: Deploy Function
+    suspend fun deployWorkflow(workflowJson: JsonObject): Result<String> {
+        return try {
+            val payload = JsonObject().apply { add("workflow_json", workflowJson) }
+            val resp = api.deployWorkflow(payload)
+            if (resp.isSuccessful) {
+                val status = resp.body()?.get("status")?.toString()?.replace("\"", "")
+                if (status == "completed") {
+                    val msg = resp.body()?.get("message")?.toString()?.replace("\"", "") ?: "Deployed successfully"
+                    Result.success(msg)
+                } else {
+                    val err = resp.body()?.get("error")?.toString()?.replace("\"", "") ?: "Deploy Error"
+                    Result.failure(Exception(err))
+                }
+            } else {
+                val err = resp.errorBody()?.string() ?: "HTTP ${resp.code()}"
+                Result.failure(Exception(err))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun fetchTasks(): Result<List<TaskItemUi>> {
         return try {
             val resp = api.getTasks()
@@ -102,7 +123,6 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                 val status = body.get("status")?.asString
                 if (status == "completed") {
                     val arr = body.getAsJsonArray("tasks") ?: return Result.success(emptyList())
-                    // FIX: Explicit element reference
                     val tasks = arr.map { element -> 
                         val obj = element.asJsonObject
                         TaskItemUi(
@@ -137,7 +157,6 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                 val status = body.get("status")?.asString
                 if (status == "completed") {
                     val arr = body.getAsJsonArray("memory_items") ?: return Result.success(emptyList())
-                    // FIX: Explicit element reference
                     val items = arr.map { element ->
                         val obj = element.asJsonObject
                         MemoryItemUi(

@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,7 +20,9 @@ import org.dpdns.bnai.assistant.viewmodel.MainViewModel
 @Composable
 fun WorkflowBuilderScreen(viewModel: MainViewModel) {
     val isBuilding by viewModel.isBuilding.collectAsState()
+    val isDeploying by viewModel.isDeploying.collectAsState()
     val output by viewModel.builderOutput.collectAsState()
+    val lastJson by viewModel.lastGeneratedWfJson.collectAsState()
     var requirements by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
@@ -39,22 +42,19 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                // Row for Generate & Clear
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = { viewModel.buildWorkflow(requirements) },
-                        enabled = !isBuilding && requirements.isNotBlank(),
+                        enabled = !isBuilding && !isDeploying && requirements.isNotBlank(),
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isBuilding) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Building...")
                         } else {
-                            Text("Generate Workflow")
+                            Text("Generate")
                         }
                     }
                     
@@ -63,9 +63,28 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
                             requirements = ""
                             viewModel.clearBuilder()
                         },
-                        enabled = !isBuilding && (output.isNotEmpty() || requirements.isNotEmpty())
+                        enabled = !isBuilding && !isDeploying && (output.isNotEmpty() || requirements.isNotEmpty())
                     ) {
                         Text("Clear")
+                    }
+                }
+
+                // DEPLOY BUTTON (Shows only if JSON is ready)
+                if (lastJson != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { viewModel.deployCurrentWorkflow() },
+                        enabled = !isDeploying,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)) // Green for deploy
+                    ) {
+                        if (isDeploying) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Deploying...")
+                        } else {
+                            Text("Deploy to Live n8n")
+                        }
                     }
                 }
             }
@@ -84,11 +103,6 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Execution Log & JSON", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    if (output.isNotEmpty() && !isBuilding) {
-                        TextButton(onClick = { viewModel.clearBuilder() }) {
-                            Text("Clear Log", fontSize = 12.sp)
-                        }
-                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(

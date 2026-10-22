@@ -24,6 +24,9 @@ interface ApiService {
     @GET("api/v1/tasks/list") suspend fun getTasks(): Response<JsonObject>
     @POST("api/v1/memory/read") suspend fun readMemory(@Body payload: JsonObject): Response<JsonObject>
     @GET("api/v1/owner/dashboard") suspend fun getOwnerDashboard(): Response<JsonObject>
+    
+    // NEW: Deploy Endpoint
+    @POST("api/v1/n8n/deploy-workflow") suspend fun deployWorkflow(@Body request: JsonObject): Response<JsonObject>
 
     companion object {
         fun create(tokenManager: TokenManager): ApiService {

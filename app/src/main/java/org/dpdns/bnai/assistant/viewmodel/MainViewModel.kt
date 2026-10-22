@@ -46,6 +46,12 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _builderOutput = MutableStateFlow("")
     val builderOutput: StateFlow<String> = _builderOutput.asStateFlow()
 
+    // NEW: Deploy State
+    private val _isDeploying = MutableStateFlow(false)
+    val isDeploying: StateFlow<Boolean> = _isDeploying.asStateFlow()
+    private val _lastGeneratedWfJson = MutableStateFlow<JsonObject?>(null)
+    val lastGeneratedWfJson: StateFlow<JsonObject?> = _lastGeneratedWfJson.asStateFlow()
+
     private val _tasks = MutableStateFlow<List<TaskItemUi>>(emptyList())
     val tasks: StateFlow<List<TaskItemUi>> = _tasks.asStateFlow()
     
@@ -89,6 +95,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
 
     fun clearBuilder() {
         _builderOutput.value = ""
+        _lastGeneratedWfJson.value = null
     }
 
     fun loadTasks() {
@@ -150,6 +157,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         if (requirements.isBlank()) return
         _isBuilding.value = true
         _builderOutput.value = "🚀 Starting Smart Hybrid Cycle...\n"
+        _lastGeneratedWfJson.value = null
         val pid = _selectedProject.value.id
 
         viewModelScope.launch {
@@ -256,12 +264,13 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                 }
 
                 if (passed) {
+                    _lastGeneratedWfJson.value = wfJsonObj
                     _builderOutput.value += "\n--- FINAL PRODUCTION WORKFLOW JSON ---\n"
                     _builderOutput.value += wfJsonObj.toString()
                     _builderOutput.value += "\n\n🧠 Saving workflow to Memory (Layer 3)..."
                     repo.saveWorkflowMemory(wfJsonObj.toString(), pid).onSuccess {
                         _builderOutput.value += " ✅ Saved!"
-                        loadMemory("workflow") // Refresh memory after save
+                        loadMemory("workflow")
                     }.onFailure {
                         _builderOutput.value += " ❌ Failed: ${it.message}"
                     }
@@ -280,6 +289,23 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
             } finally {
                 _isBuilding.value = false
             }
+        }
+    }
+
+    // NEW: Deploy Function
+    fun deployCurrentWorkflow() {
+        val wfJson = _lastGeneratedWfJson.value ?: return
+        _isDeploying.value = true
+        _builderOutput.value += "\n\n🚀 Deploying to Live n8n...\n"
+
+        viewModelScope.launch {
+            repo.deployWorkflow(wfJson).onSuccess { msg ->
+                _builderOutput.value += "✅ $msg"
+                _statusBanner.value = "Workflow Deployed Successfully!"
+            }.onFailure { err ->
+                _builderOutput.value += "❌ Deploy Failed: ${err.message}"
+            }
+            _isDeploying.value = false
         }
     }
 }
