@@ -40,11 +40,18 @@ fun MainAppScaffold(viewModel: MainViewModel) {
         }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            statusBanner?.let { Surface(color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)) { Row(modifier = Modifier.padding(12.dp).fillMaxWidth()) { Text(it, modifier = Modifier.weight(1f)); TextButton(onClick = { viewModel.clearBanner() }) { Text("OK") } } } }
+            statusBanner?.let { 
+                Surface(color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)) { 
+                    Row(modifier = Modifier.padding(12.dp).fillMaxWidth()) { 
+                        Text(it, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { viewModel.clearBanner() }) { Text("OK") } 
+                    } 
+                } 
+            }
             when (currentTab) { 
-                0 -> ChatAndSkillsScreen(viewModel) 
-                1 -> Text("Builder Screen - Phase 3 Pending") 
-                else -> Text("Soon") 
+                0 -> ChatAndSkillsScreen(viewModel)
+                1 -> WorkflowBuilderScreen(viewModel) // Correctly linked
+                else -> Text("Coming Soon")
             }
         }
     }

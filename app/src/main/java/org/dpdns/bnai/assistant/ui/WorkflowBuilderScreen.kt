@@ -1,7 +1,6 @@
 package org.dpdns.bnai.assistant.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -23,7 +22,6 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
     var requirements by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        // Input Section
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -34,7 +32,7 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
                 OutlinedTextField(
                     value = requirements,
                     onValueChange = { requirements = it },
-                    label = { Text("Describe the workflow you want to build...") },
+                    label = { Text("Describe the workflow...") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2
                 )
@@ -57,7 +55,6 @@ fun WorkflowBuilderScreen(viewModel: MainViewModel) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Output Console
         Card(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)

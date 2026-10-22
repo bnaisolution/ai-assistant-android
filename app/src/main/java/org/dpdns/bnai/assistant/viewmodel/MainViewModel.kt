@@ -23,7 +23,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _backendHealthy = MutableStateFlow(true)
     val backendHealthy: StateFlow<Boolean> = _backendHealthy.asStateFlow()
 
-    // Chat States
     val projects = listOf(ProjectUi("11111111-1111-1111-1111-111111111111", "Default Project"))
     private val _selectedProject = MutableStateFlow(projects.first())
     val selectedProject: StateFlow<ProjectUi> = _selectedProject.asStateFlow()
@@ -42,7 +41,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     val messages: StateFlow<List<ChatMessageUi>> = _messages.asStateFlow()
     private var currentConversationId: String? = null
 
-    // Builder States (Phase 3)
     private val _isBuilding = MutableStateFlow(false)
     val isBuilding: StateFlow<Boolean> = _isBuilding.asStateFlow()
     private val _builderOutput = MutableStateFlow("")
@@ -113,7 +111,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         }
     }
 
-    // --- PHASE 3: WF BUILDER LOGIC (Blueprint v1.6 Part 13) ---
     fun buildWorkflow(requirements: String) {
         if (requirements.isBlank()) return
         _isBuilding.value = true
@@ -121,7 +118,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // Step 1: Generate (WF-02)
                 _builderOutput.value += "1. Generating Workflow via WF-02...\n"
                 val genPayload = JsonObject().apply {
                     addProperty("requirements", requirements)
@@ -131,12 +127,16 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                 val genRes = repo.executeGatewayIntent("GENERATE_WORKFLOW", genPayload)
                 if (genRes.isFailure) throw Exception("Generation failed: ${genRes.exceptionOrNull()?.message}")
                 
-                var currentWfJson = genRes.getOrNull()?.result?.getAsJsonObject("child_result")?.getAsJsonObject("generated_workflow_json")
+                // BUG FIX: Correct JSON Path (child_result -> result -> generated_workflow_json)
+                var currentWfJson = genRes.getOrNull()?.result
+                    ?.getAsJsonObject("child_result")
+                    ?.getAsJsonObject("result")
+                    ?.getAsJsonObject("generated_workflow_json")
+                    
                 if (currentWfJson == null) throw Exception("No workflow JSON generated.")
                 
                 _builderOutput.value += "✅ Workflow Generated!\n\n"
 
-                // Step 2: 5-Attempt Repair Loop (Validate -> Update)
                 var attempt = 0
                 var passed = false
                 while (attempt < 5 && !passed) {
@@ -147,8 +147,8 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     }
                     
                     val valRes = repo.executeGatewayIntent("VALIDATE_WORKFLOW", valPayload)
-                    val valChild = valRes.getOrNull()?.result?.getAsJsonObject("child_result")
-                    val valStatus = valChild?.get("validation_status")?.asString ?: "failed"
+                    val valResult = valRes.getOrNull()?.result?.getAsJsonObject("child_result")?.getAsJsonObject("result")
+                    val valStatus = valResult?.get("validation_status")?.asString ?: "failed"
 
                     if (valStatus == "passed") {
                         passed = true
@@ -168,7 +168,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                         addProperty("requested_changes", "Fix validation errors.")
                     }
                     val updRes = repo.executeGatewayIntent("UPDATE_WORKFLOW", updPayload)
-                    val updatedWf = updRes.getOrNull()?.result?.getAsJsonObject("child_result")?.getAsJsonObject("updated_workflow_json")
+                    val updatedWf = updRes.getOrNull()?.result?.getAsJsonObject("child_result")?.getAsJsonObject("result")?.getAsJsonObject("updated_workflow_json")
                     
                     if (updatedWf != null) {
                         currentWfJson = updatedWf

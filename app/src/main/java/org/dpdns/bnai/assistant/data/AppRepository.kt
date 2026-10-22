@@ -48,7 +48,6 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    // NEW: Generic Gateway execution for WF Builder
     suspend fun executeGatewayIntent(intent: String, payloadObj: JsonObject): Result<GatewayExecuteResponse> {
         val reqId = newRequestId()
         return try {
