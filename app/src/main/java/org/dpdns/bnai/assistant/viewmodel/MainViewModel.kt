@@ -46,12 +46,31 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _builderOutput = MutableStateFlow("")
     val builderOutput: StateFlow<String> = _builderOutput.asStateFlow()
 
-    init { viewModelScope.launch { _backendHealthy.value = repo.checkBackendHealth() } }
+    private val _tasks = MutableStateFlow<List<TaskItemUi>>(emptyList())
+    val tasks: StateFlow<List<TaskItemUi>> = _tasks.asStateFlow()
+    
+    private val _memoryItems = MutableStateFlow<List<MemoryItemUi>>(emptyList())
+    val memoryItems: StateFlow<List<MemoryItemUi>> = _memoryItems.asStateFlow()
+
+    init { 
+        viewModelScope.launch { 
+            _backendHealthy.value = repo.checkBackendHealth() 
+            if (_isLoggedIn.value) {
+                loadTasks()
+                loadMemory("project")
+            }
+        } 
+    }
 
     fun login(email: String, pass: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            repo.login(email, pass).onSuccess { _isLoggedIn.value = true; _statusBanner.value = "Logged in as ${repo.tokenManager.getRole()}" }.onFailure { _statusBanner.value = "Error: ${it.message}" }
+            repo.login(email, pass).onSuccess { 
+                _isLoggedIn.value = true
+                _statusBanner.value = "Logged in as ${repo.tokenManager.getRole()}"
+                loadTasks()
+                loadMemory("project")
+            }.onFailure { _statusBanner.value = "Error: ${it.message}" }
             _isLoading.value = false
         }
     }
@@ -68,9 +87,20 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         _messages.value = listOf(ChatMessageUi("welcome", "assistant", "Nayi chat shuru! Main aapki kya madad kar sakta hoon?", "Now", "verified", "system"))
     }
 
-    // NEW: Clear Builder function
     fun clearBuilder() {
         _builderOutput.value = ""
+    }
+
+    fun loadTasks() {
+        viewModelScope.launch {
+            repo.fetchTasks().onSuccess { _tasks.value = it }
+        }
+    }
+
+    fun loadMemory(scope: String) {
+        viewModelScope.launch {
+            repo.fetchMemory(scope, _selectedProject.value.id).onSuccess { _memoryItems.value = it }
+        }
     }
 
     private suspend fun simulateTypewriter(fullText: String, provider: String, verification: String) {
@@ -136,7 +166,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                 val childObj = genRes.getOrNull()?.result?.get("child_result")
                 if (childObj == null || !childObj.isJsonObject) throw Exception("Invalid response from backend.")
                 
-                // DEBUG FIX: Show real error if JSON is missing
                 val currentWfJson = childObj.asJsonObject.get("generated_workflow_json")
                 if (currentWfJson == null || !currentWfJson.isJsonObject) {
                     val errDetails = childObj.toString().take(300)
@@ -232,6 +261,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     _builderOutput.value += "\n\n🧠 Saving workflow to Memory (Layer 3)..."
                     repo.saveWorkflowMemory(wfJsonObj.toString(), pid).onSuccess {
                         _builderOutput.value += " ✅ Saved!"
+                        loadMemory("workflow") // Refresh memory after save
                     }.onFailure {
                         _builderOutput.value += " ❌ Failed: ${it.message}"
                     }
