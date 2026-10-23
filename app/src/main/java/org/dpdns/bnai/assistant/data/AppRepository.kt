@@ -23,7 +23,7 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { defaultMsg }
     }
 
-        fun streamFastChat(message: String, projectId: String?, convId: String?, skillKey: String, ceoMode: Boolean, fileContext: String?): Flow<StreamEvent> = callbackFlow {
+    fun streamFastChat(message: String, projectId: String?, convId: String?, skillKey: String, ceoMode: Boolean, fileContext: String?): Flow<StreamEvent> = callbackFlow {
         val client = OkHttpClient.Builder().build()
         val json = JsonObject().apply { 
             addProperty("message", message)
@@ -44,7 +44,8 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: java.io.IOException) { close(e) }
             override fun onResponse(call: Call, response: Response) {
-                if (!response.isSuccessful) { close(Exception("HTTP ${response.statusCode}")); return }
+                // FIXED: Changed statusCode to code
+                if (!response.isSuccessful) { close(Exception("HTTP ${response.code}")); return }
                 val source = response.body?.source() ?: return
                 try { 
                     while (!source.exhausted()) { 
@@ -173,6 +174,23 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } else Result.failure(Exception(parseError(r.errorBody()?.string(), "Failed"))) 
     } catch(e:Exception) { Result.failure(e) }
 
+    suspend fun sendGatewayChat(message: String, projectId: String?, convId: String?): Result<ChatMessageUi> {
+        val reqId = newRequestId()
+        return try {
+            val payload = JsonObject().apply { addProperty("message", message) }
+            val req = GatewayExecuteRequest(reqId, tokenManager.getUserId(), tokenManager.getWorkspaceId(), projectId, convId, "CHAT", "manual", payload)
+            val resp = api.executeWorkflow(req)
+            if (resp.isSuccessful && resp.body() != null) {
+                val b = resp.body()!!
+                if (b.status == "completed") {
+                    val child = b.result?.getAsJsonObject("child_result")
+                    val text = child?.get("assistant_message")?.asString ?: "Gateway Success (No msg)"
+                    Result.success(ChatMessageUi(reqId, "assistant", text, "Just now", b.verification?.status ?: "verified", "n8n-gateway"))
+                } else Result.failure(Exception(b.errors?.firstOrNull()?.message ?: "Gateway Error"))
+            } else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Gateway failed")))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun executeGatewayIntent(intent:String, payloadObj:JsonObject, projectId:String?): Result<GatewayExecuteResponse> = try { 
         val req = GatewayExecuteRequest(newRequestId(), tokenManager.getUserId(), tokenManager.getWorkspaceId(), projectId, null, intent, "manual", payloadObj)
         val r = api.executeWorkflow(req)
@@ -215,21 +233,4 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
     } catch(e:Exception) { Result.failure(e) }
 
     suspend fun checkBackendHealth(): Boolean = try { api.checkHealth().isSuccessful } catch(e:Exception) { false }
-
-    suspend fun sendGatewayChat(message: String, projectId: String?, convId: String?): Result<ChatMessageUi> {
-        val reqId = newRequestId()
-        return try {
-            val payload = JsonObject().apply { addProperty("message", message) }
-            val req = GatewayExecuteRequest(reqId, tokenManager.getUserId(), tokenManager.getWorkspaceId(), projectId, convId, "CHAT", "manual", payload)
-            val resp = api.executeWorkflow(req)
-            if (resp.isSuccessful && resp.body() != null) {
-                val b = resp.body()!!
-                if (b.status == "completed") {
-                    val child = b.result?.getAsJsonObject("child_result")
-                    val text = child?.get("assistant_message")?.asString ?: "Gateway Success (No msg)"
-                    Result.success(ChatMessageUi(reqId, "assistant", text, "Just now", b.verification?.status ?: "verified", "n8n-gateway"))
-                } else Result.failure(Exception(b.errors?.firstOrNull()?.message ?: "Gateway Error"))
-            } else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Gateway failed")))
-        } catch (e: Exception) { Result.failure(e) }
-    }
 }
