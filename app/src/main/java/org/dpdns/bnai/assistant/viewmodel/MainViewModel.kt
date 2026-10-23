@@ -37,7 +37,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     private val _selectedProject = MutableStateFlow(projects.first())
     val selectedProject: StateFlow<ProjectUi> = _selectedProject.asStateFlow()
     
-    val skills = listOf(SkillUi("ai_admin", "AI Admin"), SkillUi("n8n_wf_builder", "WF Builder"))
+    val skills = listOf(SkillUi("ai_admin", "AI Admin"), SkillUi("n8n_wf_builder", "WF Builder", ownerOnly = true))
     private val _selectedSkill = MutableStateFlow(skills.first())
     val selectedSkill: StateFlow<SkillUi> = _selectedSkill.asStateFlow()
     

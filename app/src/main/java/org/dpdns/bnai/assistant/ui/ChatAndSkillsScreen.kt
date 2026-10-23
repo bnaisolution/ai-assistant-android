@@ -29,6 +29,7 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel) {
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val useFastPath by viewModel.useFastPath.collectAsState()
+    val isOwner by viewModel.isOwner.collectAsState()
     val ceoMode by viewModel.ceoMode.collectAsState()
     val selectedProject by viewModel.selectedProject.collectAsState()
     val selectedSkill by viewModel.selectedSkill.collectAsState()
