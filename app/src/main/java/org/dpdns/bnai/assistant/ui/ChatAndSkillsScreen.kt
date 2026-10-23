@@ -27,68 +27,56 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel, onOpenDrawer: () -> Unit) {
     val context = LocalContext.current
     val messages by viewModel.messages.collectAsState()
     val selectedSkill by viewModel.selectedSkill.collectAsState()
-    val useFastPath by viewModel.useFastPath.collectAsState()
-    val ceoMode by viewModel.ceoMode.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val isOwner by viewModel.isOwner.collectAsState()
-    val skills by viewModel.skills.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
-    var showSkillSheet by remember { mutableStateOf(false) }
-    var attachedFileContext by remember { mutableStateOf<String?>(null) }
-    var attachedFileName by remember { mutableStateOf<String?>(null) }
 
-    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            attachedFileContext = "Content of the attached file: This is a mock document about the user's query."
-            attachedFileName = "document.pdf"
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-            Column(modifier = Modifier.padding(10.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenDrawer) { Icon(Icons.Default.Menu, contentDescription = "History") }
-                    OutlinedButton(onClick = { showSkillSheet = true }) { Text("Skill: ${selectedSkill.name}", fontSize = 11.sp) }
-                    Row {
-                        IconButton(onClick = {
-                            if (!Settings.canDrawOverlays(context)) {
-                                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-                                context.startActivity(intent)
-                            } else {
-                                context.startForegroundService(Intent(context, FloatingBubbleService::class.java))
-                            }
-                        }) { Icon(Icons.Default.Star, contentDescription = "Bubble") }
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        
+        // CLEAN TOP BAR
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(onClick = onOpenDrawer) { Icon(Icons.Default.Menu, contentDescription = "Menu") }
+            Text("AI Admin", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            
+            Row {
+                // Floating Bubble Launcher
+                IconButton(onClick = {
+                    if (!Settings.canDrawOverlays(context)) {
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+                        context.startActivity(intent)
+                    } else {
+                        context.startForegroundService(Intent(context, FloatingBubbleService::class.java))
                     }
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = useFastPath, onCheckedChange = { viewModel.toggleFastPath(it) })
-                        Text(if (useFastPath) "Fast AI" else "n8n", fontSize = 11.sp)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = ceoMode, onCheckedChange = { viewModel.toggleCeoMode(it) })
-                        Text("CEO Mode", fontSize = 11.sp)
-                    }
-                    TextButton(onClick = { viewModel.startNewChat() }) { Text("+ New", fontSize = 11.sp) }
-                }
+                }) { Icon(Icons.Default.Star, contentDescription = "Floating Bubble") }
+                
+                IconButton(onClick = { viewModel.startNewChat() }) { Icon(Icons.Default.Add, contentDescription = "New Chat") }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+        // MESSAGES (ChatGPT Style)
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(messages, key = { it.id }) { msg ->
                 val isUser = msg.role == "user"
                 Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = if (isUser) Alignment.End else Alignment.Start) {
-                    Surface(shape = RoundedCornerShape(12.dp), color = if (isUser) MaterialTheme.colorScheme.primary else if (msg.isError) MaterialTheme.colorScheme.error.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surface, modifier = Modifier.widthIn(max = 320.dp)) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(text = msg.content, fontSize = 14.sp)
-                            if (!isUser) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${msg.provider} • ${msg.verificationStatus}", fontSize = 10.sp, color = MaterialTheme.colorScheme.secondary)
-                                    Spacer(modifier = Modifier.weight(1f))
+                    if (isUser) {
+                        // User Bubble
+                        Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.widthIn(max = 300.dp)) {
+                            Text(text = msg.content, fontSize = 15.sp, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(12.dp))
+                        }
+                    } else {
+                        // AI Text (Clean, no bubble)
+                        Row(verticalAlignment = Alignment.Top) {
+                            Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(28.dp)) {
+                                Box(contentAlignment = Alignment.Center) { Text("AI", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSecondary) }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(text = msg.content, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
+                                Row {
                                     IconButton(onClick = { viewModel.sendFeedback(msg.id, "thumbs_up") }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.ThumbUp, null, modifier = Modifier.size(14.dp)) }
                                     IconButton(onClick = { viewModel.sendFeedback(msg.id, "thumbs_down") }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.ThumbDown, null, modifier = Modifier.size(14.dp)) }
                                 }
@@ -98,28 +86,30 @@ fun ChatAndSkillsScreen(viewModel: MainViewModel, onOpenDrawer: () -> Unit) {
                 }
             }
         }
-        
-        attachedFileName?.let {
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(16.dp))
-                Text(" $it", fontSize = 12.sp)
-                IconButton(onClick = { attachedFileContext = null; attachedFileName = null }) { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) }
-            }
-        }
 
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { filePickerLauncher.launch("*/*") }) { Icon(Icons.Default.AttachFile, "Attach") }
-            OutlinedTextField(value = inputText, onValueChange = { inputText = it }, placeholder = { Text("Message...") }, modifier = Modifier.weight(1f))
+        // CLEAN INPUT BAR
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { /* Attach File logic */ }) { Icon(Icons.Default.Add, "Attach") }
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = { inputText = it },
+                placeholder = { Text("Ask anything...") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(24.dp),
+                maxLines = 4
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { 
-                val q = inputText; val f = attachedFileContext
-                inputText = ""; attachedFileContext = null; attachedFileName = null
-                viewModel.streamChatMessage(q, f) 
-            }, enabled = !isLoading && inputText.isNotBlank()) { Text(if (isLoading) "..." else "➤") }
+            IconButton(
+                onClick = { 
+                    val q = inputText; inputText = ""
+                    viewModel.streamChatMessage(q) 
+                },
+                enabled = !isLoading && inputText.isNotBlank(),
+                modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50))
+            ) { Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.onPrimary) }
         }
-    }
-
-    if (showSkillSheet) {
-        SkillBottomSheet(skills = skills.filter { !it.ownerOnly || isOwner }, selectedSkill = selectedSkill, onSkillSelected = { sk -> viewModel.selectSkill(sk); showSkillSheet = false }, onDismiss = { showSkillSheet = false })
     }
 }

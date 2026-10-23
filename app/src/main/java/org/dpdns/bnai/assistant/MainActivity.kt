@@ -11,7 +11,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -48,6 +50,10 @@ fun MainAppScaffold(viewModel: MainViewModel) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val history by viewModel.history.collectAsState()
+    val skills by viewModel.skills.collectAsState()
+    val selectedSkill by viewModel.selectedSkill.collectAsState()
+    val useFastPath by viewModel.useFastPath.collectAsState()
+    val ceoMode by viewModel.ceoMode.collectAsState()
 
     LaunchedEffect(isLoggedIn) { if (!isLoggedIn) currentTab = 0 }
 
@@ -59,41 +65,66 @@ fun MainAppScaffold(viewModel: MainViewModel) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
-                Text("Chat History", modifier = Modifier.padding(16.dp), fontSize = 20.sp)
+            ModalDrawerSheet(modifier = Modifier.width(320.dp)) {
+                // 1. Profile Section
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Neeraj (Owner)", fontWeight = FontWeight.Bold)
+                        Text("admin@example.com", fontSize = 12.sp)
+                    }
+                }
+                // 2. Logout Button
+                TextButton(onClick = { viewModel.logout() }, modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Icon(Icons.Default.ExitToApp, null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Logout", color = MaterialTheme.colorScheme.error)
+                }
                 Divider()
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                
+                // 3. New Chat
+                TextButton(onClick = { viewModel.startNewChat(); currentTab = 0; scope.launch { drawerState.close() } }, modifier = Modifier.padding(16.dp)) {
+                    Icon(Icons.Default.Add, null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("New Chat", fontWeight = FontWeight.Bold)
+                }
+                Divider()
+
+                // 4. Chat History
+                Text("History", modifier = Modifier.padding(16.dp, 8.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                LazyColumn(modifier = Modifier.weight(1f)) {
                     items(history) { conv ->
-                        // FIXED: headlineText changed to headlineContent for Material 3
                         ListItem(
-                            headlineContent = { Text(conv.title) },
-                            modifier = Modifier.clickable { 
-                                viewModel.loadConversation(conv.id)
-                                currentTab = 0 
-                                scope.launch { drawerState.close() }
-                            }
+                            headlineContent = { Text(conv.title, maxLines = 1) },
+                            modifier = Modifier.clickable { viewModel.loadConversation(conv.id); currentTab = 0; scope.launch { drawerState.close() } }
                         )
                     }
+                }
+                
+                Divider()
+                // 5. Settings (Moved from Chat Screen)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Settings", fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = useFastPath, onCheckedChange = { viewModel.toggleFastPath(it) })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Fast AI Mode", fontSize = 12.sp)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = ceoMode, onCheckedChange = { viewModel.toggleCeoMode(it) })
+                        Text("CEO Mode", fontSize = 12.sp)
+                    }
+                    Text("Active Skill: ${selectedSkill.name}", fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
         }
     ) {
         Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("BNAI Assistant v3.0", fontSize = 18.sp) },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "History")
-                        }
-                    },
-                    actions = { TextButton(onClick = { viewModel.logout() }) { Text("Logout", color = MaterialTheme.colorScheme.error) } }
-                )
-            },
             bottomBar = {
                 NavigationBar {
                     NavigationBarItem(selected = currentTab == 0, onClick = { currentTab = 0 }, icon = { Icon(Icons.Default.Chat, null) }, label = { Text("Chat") })
-                    if (isOwner) NavigationBarItem(selected = currentTab == 1, onClick = { currentTab = 1 }, icon = { Icon(Icons.Default.Build, null) }, label = { Text("WF Builder") })
+                    if (isOwner) NavigationBarItem(selected = currentTab == 1, onClick = { currentTab = 1 }, icon = { Icon(Icons.Default.Build, null) }, label = { Text("Builder") })
                     NavigationBarItem(selected = currentTab == 2, onClick = { currentTab = 2 }, icon = { Icon(Icons.Default.CheckCircle, null) }, label = { Text("Tasks") })
                     NavigationBarItem(selected = currentTab == 3, onClick = { currentTab = 3 }, icon = { Icon(Icons.Default.Storage, null) }, label = { Text("Memory") })
                     if (isOwner) NavigationBarItem(selected = currentTab == 4, onClick = { currentTab = 4 }, icon = { Icon(Icons.Default.Security, null) }, label = { Text("Owner") })
