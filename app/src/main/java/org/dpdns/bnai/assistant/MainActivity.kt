@@ -64,8 +64,9 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                 Divider()
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(history) { conv ->
+                        // FIXED: headlineText changed to headlineContent for Material 3
                         ListItem(
-                            headlineText = { Text(conv.title) },
+                            headlineContent = { Text(conv.title) },
                             modifier = Modifier.clickable { 
                                 viewModel.loadConversation(conv.id)
                                 currentTab = 0 
