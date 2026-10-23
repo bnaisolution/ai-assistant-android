@@ -70,7 +70,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     
     fun logout() { viewModelScope.launch { repo.logout(); _isLoggedIn.value = false; _isOwner.value = false; _authStep.value = "LOGIN"; _skills.value = emptyList(); _history.value = emptyList(); currentConversationId = null } }
     
-    fun loadSkills() { viewModelScope.launch { repo.getSkills().onSuccess { ds -> _skills.value = ds.map { SkillUi(it.key, it.name, it.description ?: "", it.ownerOnly) }; if (_skills.value.isNotEmpty()) _selectedSkill.value = _skills.value.first() } } }
+    fun loadSkills() { viewModelScope.launch { repo.getSkills().onSuccess { ds -> _skills.value = ds.map { skill: DynamicSkill -> SkillUi(skill.key, skill.name, skill.description ?: "", skill.ownerOnly) }; if (_skills.value.isNotEmpty()) _selectedSkill.value = _skills.value.first() } } }
     fun loadConfigs() { viewModelScope.launch { repo.getAiModels().onSuccess { _aiModels.value = it }; repo.getPrompts().onSuccess { _prompts.value = it } } }
     fun loadHistory() { viewModelScope.launch { repo.getHistory().onSuccess { _history.value = it } } }
     fun loadConversation(convId: String) { viewModelScope.launch { repo.getChatMessages(convId).onSuccess { _messages.value = it; currentConversationId = convId } } }
@@ -78,8 +78,8 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     fun loadTasks() { viewModelScope.launch { repo.fetchTasks().onSuccess { _tasks.value = it } } }
     fun loadMemory(scope: String) { viewModelScope.launch { repo.fetchMemory(scope, _selectedProject.value.id).onSuccess { _memoryItems.value = it } } }
 
-    fun setPrimaryModel(modelId: String) { viewModelScope.launch { aiModels.value.forEach { repo.updateAiModel(id = it.id, isEnabled = false) }; repo.updateAiModel(id = modelId, isEnabled = true, priority = 1).onSuccess { loadConfigs() } } }
-    fun setFallbackModel(modelId: String) { viewModelScope.launch { if (modelId.isEmpty()) { aiModels.value.filter { it.priority == 2 }.forEach { repo.updateAiModel(id = it.id, isEnabled = false) }; loadConfigs() } else { repo.updateAiModel(id = modelId, isEnabled = true, priority = 2).onSuccess { loadConfigs() } } } }
+    fun setPrimaryModel(modelId: String) { viewModelScope.launch { aiModels.value.forEach { model: AIModelConfig -> repo.updateAiModel(id = model.id, isEnabled = false) }; repo.updateAiModel(id = modelId, isEnabled = true, priority = 1).onSuccess { loadConfigs() } } }
+    fun setFallbackModel(modelId: String) { viewModelScope.launch { if (modelId.isEmpty()) { aiModels.value.filter { model: AIModelConfig -> model.priority == 2 }.forEach { model: AIModelConfig -> repo.updateAiModel(id = model.id, isEnabled = false) }; loadConfigs() } else { repo.updateAiModel(id = modelId, isEnabled = true, priority = 2).onSuccess { loadConfigs() } } } }
     fun addNewProvider(name: String, model: String, baseUrl: String, apiKey: String) { viewModelScope.launch { repo.updateAiModel(name = name, model = model, baseUrl = baseUrl, apiKey = apiKey, priority = 3, isEnabled = false).onSuccess { loadConfigs(); _statusBanner.value = "Provider Added" }.onFailure { _statusBanner.value = "Failed: ${it.message}" } } }
     fun updatePrompt(skillKey: String, text: String) { viewModelScope.launch { repo.updatePrompt(skillKey, text).onSuccess { loadConfigs(); _statusBanner.value = "Prompt Updated" } } }
     fun saveByoi(type: String, ep: String, key: String, model: String) { viewModelScope.launch { repo.saveByoi(type, ep, key, model).onSuccess { _statusBanner.value = "Integration Saved" } } }
@@ -101,16 +101,19 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         viewModelScope.launch { 
             if (_useFastPath.value) {
                 var fullText = ""; 
-                repo.streamFastChat(userText, _selectedProject.value.id, currentConversationId, _selectedSkill.value.key, _ceoMode.value, fileContext).collect { event -> 
+                repo.streamFastChat(userText, _selectedProject.value.id, currentConversationId, _selectedSkill.value.key, _ceoMode.value, fileContext).collect { event: StreamEvent -> 
                     if (event.convId != null) currentConversationId = event.convId
-                    if (event.text != null) { fullText += event.text; _messages.value = _messages.value.map { if (it.id == tempId) it.copy(content = fullText) else it } }
+                    if (event.text != null) { 
+                        fullText += event.text; 
+                        _messages.value = _messages.value.map { chatMsg: ChatMessageUi -> if (chatMsg.id == tempId) chatMsg.copy(content = fullText) else chatMsg } 
+                    }
                 }; 
-                _messages.value = _messages.value.map { if (it.id == tempId) it.copy(timestamp = "Just now", verificationStatus = "verified") else it }
+                _messages.value = _messages.value.map { chatMsg: ChatMessageUi -> if (chatMsg.id == tempId) chatMsg.copy(timestamp = "Just now", verificationStatus = "verified") else chatMsg }
             } else {
-                repo.sendGatewayChat(userText, _selectedProject.value.id, currentConversationId).onSuccess { msg ->
-                    _messages.value = _messages.value.map { if (it.id == tempId) it.copy(content = msg.content, provider = msg.provider, verificationStatus = msg.verificationStatus, timestamp = "Just now") else it }
-                }.onFailure { e ->
-                    _messages.value = _messages.value.map { if (it.id == tempId) it.copy(content = "n8n Error: ${e.message}", isError = true, verificationStatus = "failed", provider = "system") else it }
+                repo.sendGatewayChat(userText, _selectedProject.value.id, currentConversationId).onSuccess { resMsg: ChatMessageUi ->
+                    _messages.value = _messages.value.map { chatMsg: ChatMessageUi -> if (chatMsg.id == tempId) chatMsg.copy(content = resMsg.content, provider = resMsg.provider, verificationStatus = resMsg.verificationStatus, timestamp = "Just now") else chatMsg }
+                }.onFailure { e: Throwable ->
+                    _messages.value = _messages.value.map { chatMsg: ChatMessageUi -> if (chatMsg.id == tempId) chatMsg.copy(content = "n8n Error: ${e.message}", isError = true, verificationStatus = "failed", provider = "system") else chatMsg }
                 }
             }
             loadHistory()
