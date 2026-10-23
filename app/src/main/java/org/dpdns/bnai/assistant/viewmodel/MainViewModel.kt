@@ -11,6 +11,30 @@ import org.dpdns.bnai.assistant.data.*
 import java.util.UUID
 
 class MainViewModel(private val repo: AppRepository) : ViewModel() {
+    private val _isOwner = MutableStateFlow(repo.tokenManager.getRole().lowercase().contains("owner"))
+    val isOwner: StateFlow<Boolean> = _isOwner.asStateFlow()
+    
+    private val _authStep = MutableStateFlow("LOGIN")
+    val authStep: StateFlow<String> = _authStep.asStateFlow()
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    fun setAuthStep(step: String) { _authStep.value = step; _authError.value = null }
+
+    fun signup(email: String, pass: String) {
+        viewModelScope.launch {
+            _isLoading.value = true; _authError.value = null
+            repo.signup(email, pass).onSuccess { _authStep.value = "OTP" }.onFailure { _authError.value = it.message; _isLoading.value = false }
+        }
+    }
+
+    fun verifyOtp(email: String, otp: String) {
+        viewModelScope.launch {
+            _isLoading.value = true; _authError.value = null
+            repo.verifyOtp(email, otp).onSuccess { _authStep.value = "LOGIN"; _authError.value = "Verified! Please login." }.onFailure { _authError.value = it.message; _isLoading.value = false }
+        }
+    }
+    
     private val _isLoggedIn = MutableStateFlow(repo.tokenManager.getToken() != null)
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
@@ -73,15 +97,31 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
             _isLoading.value = true
             repo.login(email, pass).onSuccess { 
                 _isLoggedIn.value = true
+                _isOwner.value = repo.tokenManager.getRole().lowercase().contains("owner")
                 _statusBanner.value = "Logged in as ${repo.tokenManager.getRole()}"
                 loadTasks()
                 loadMemory("project")
-            }.onFailure { _statusBanner.value = "Error: ${it.message}" }
+            }.onFailure { e -> 
+                if (e.message == "UNVERIFIED_USER") {
+                    _authStep.value = "OTP"
+                    _authError.value = "Please verify your email OTP."
+                } else {
+                    _statusBanner.value = "Error: ${e.message}" 
+                }
+            }
             _isLoading.value = false
         }
     }
 
-    fun logout() { repo.tokenManager.clearSession(); _isLoggedIn.value = false; currentConversationId = null }
+    fun logout() {
+        viewModelScope.launch {
+            repo.logout()
+            _isLoggedIn.value = false
+            _isOwner.value = false
+            _authStep.value = "LOGIN"
+            currentConversationId = null 
+        }
+    }
     fun clearBanner() { _statusBanner.value = null }
     fun selectProject(p: ProjectUi) { _selectedProject.value = p }
     fun selectSkill(s: SkillUi) { _selectedSkill.value = s }

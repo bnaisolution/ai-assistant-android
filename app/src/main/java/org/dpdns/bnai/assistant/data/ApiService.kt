@@ -13,6 +13,10 @@ import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
 interface ApiService {
+    @POST("api/v1/auth/signup") suspend fun signup(@Body request: SignupRequest): Response<JsonObject>
+    @POST("api/v1/auth/verify-otp") suspend fun verifyOtp(@Body request: VerifyOtpRequest): Response<JsonObject>
+    @POST("api/v1/auth/logout") suspend fun logout(): Response<JsonObject>
+
     @POST("api/v1/auth/login") suspend fun login(@Body request: LoginRequest): Response<AuthResponse>
     @POST("api/v1/ai/chat") suspend fun fastChat(@Body request: FastChatRequest): Response<FastChatResponse>
     @POST("api/v1/ai/execute") suspend fun executeWorkflow(@Body request: GatewayExecuteRequest): Response<GatewayExecuteResponse>

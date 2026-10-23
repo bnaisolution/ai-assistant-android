@@ -5,6 +5,26 @@ import java.util.UUID
 class AppRepository(private val api: ApiService, val tokenManager: TokenManager) {
     private fun newRequestId(): String = UUID.randomUUID().toString()
 
+    suspend fun signup(email: String, pass: String): Result<String> {
+        return try {
+            val resp = api.signup(SignupRequest(email, pass))
+            if (resp.isSuccessful) Result.success("OTP Sent")
+            else Result.failure(Exception(resp.errorBody()?.string() ?: "Signup failed"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun verifyOtp(email: String, otp: String): Result<Boolean> {
+        return try {
+            val resp = api.verifyOtp(VerifyOtpRequest(email, otp))
+            if (resp.isSuccessful) Result.success(true)
+            else Result.failure(Exception(resp.errorBody()?.string() ?: "Invalid OTP"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun logout() {
+        try { api.logout() } catch (e: Exception) {} finally { tokenManager.clearSession() }
+    }
+
     suspend fun login(email: String, pass: String): Result<Boolean> {
         return try {
             val resp = api.login(LoginRequest(email, pass))
@@ -14,7 +34,14 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                 if (jwt.isBlank()) return Result.failure(Exception("No token received"))
                 tokenManager.saveSession(jwt, b.userId ?: tokenManager.getUserId(), b.workspaceId ?: tokenManager.getWorkspaceId(), email, b.role ?: "normal_user")
                 Result.success(true)
-            } else { Result.failure(Exception("Login failed: HTTP ${resp.code()}")) }
+            } else { 
+                val errStr = resp.errorBody()?.string() ?: ""
+                if (resp.code() == 403 && errStr.contains("verify", ignoreCase = true)) {
+                    Result.failure(Exception("UNVERIFIED_USER"))
+                } else {
+                    Result.failure(Exception("Login failed: HTTP ${resp.code()}")) 
+                }
+            }
         } catch (e: Exception) { Result.failure(e) }
     }
 

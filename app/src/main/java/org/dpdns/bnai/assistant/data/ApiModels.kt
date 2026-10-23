@@ -19,3 +19,6 @@ data class MemoryWriteRequest(val scope: String, val key: String?, val content: 
 // Updated Tasks Model
 data class TaskItemUi(val id: String, val title: String, val status: String, val priority: String, val createdAt: String, val updatedAt: String)
 data class MemoryItemUi(val id: String, val scope: String, val key: String?, val content: String, val category: String, val createdAt: String)
+
+data class SignupRequest(val email: String, val password: String)
+data class VerifyOtpRequest(val email: String, val otp: String)
