@@ -1,4 +1,5 @@
 package org.dpdns.bnai.assistant.viewmodel
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonObject
@@ -11,91 +12,99 @@ import org.dpdns.bnai.assistant.data.*
 import java.util.UUID
 
 class MainViewModel(private val repo: AppRepository) : ViewModel() {
+    private val _isLoggedIn = MutableStateFlow(repo.tokenManager.getToken() != null)
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+    
     private val _isOwner = MutableStateFlow(repo.tokenManager.getRole().lowercase().contains("owner"))
     val isOwner: StateFlow<Boolean> = _isOwner.asStateFlow()
     
     private val _authStep = MutableStateFlow("LOGIN")
     val authStep: StateFlow<String> = _authStep.asStateFlow()
+    
     private val _authError = MutableStateFlow<String?>(null)
     val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    
+    private val _statusBanner = MutableStateFlow<String?>(null)
+    val statusBanner: StateFlow<String?> = _statusBanner.asStateFlow()
+    
+    private val _backendHealthy = MutableStateFlow(true)
+    val backendHealthy: StateFlow<Boolean> = _backendHealthy.asStateFlow()
+    
+    val projects = listOf(ProjectUi("11111111-1111-1111-1111-111111111111", "Default Project"))
+    private val _selectedProject = MutableStateFlow(projects.first())
+    val selectedProject: StateFlow<ProjectUi> = _selectedProject.asStateFlow()
+    
+    val skills = listOf(SkillUi("ai_admin", "AI Admin"), SkillUi("n8n_wf_builder", "WF Builder"))
+    private val _selectedSkill = MutableStateFlow(skills.first())
+    val selectedSkill: StateFlow<SkillUi> = _selectedSkill.asStateFlow()
+    
+    private val _ceoMode = MutableStateFlow(false)
+    val ceoMode: StateFlow<Boolean> = _ceoMode.asStateFlow()
+    private val _useFastPath = MutableStateFlow(true)
+    val useFastPath: StateFlow<Boolean> = _useFastPath.asStateFlow()
+    private val _messages = MutableStateFlow(listOf(ChatMessageUi("welcome", "assistant", "Namaste! Main aapka BNAI Assistant (v3.0) hun.", "Ready", "verified", "system")))
+    val messages: StateFlow<List<ChatMessageUi>> = _messages.asStateFlow()
+    
+    private var currentConversationId: String? = null
+    private val _isBuilding = MutableStateFlow(false)
+    val isBuilding: StateFlow<Boolean> = _isBuilding.asStateFlow()
+    private val _builderOutput = MutableStateFlow("")
+    val builderOutput: StateFlow<String> = _builderOutput.asStateFlow()
+    
+    private val _isDeploying = MutableStateFlow(false)
+    val isDeploying: StateFlow<Boolean> = _isDeploying.asStateFlow()
+    private val _lastGeneratedWfJson = MutableStateFlow<JsonObject?>(null)
+    val lastGeneratedWfJson: StateFlow<JsonObject?> = _lastGeneratedWfJson.asStateFlow()
+    
+    private val _tasks = MutableStateFlow<List<TaskItemUi>>(emptyList())
+    val tasks: StateFlow<List<TaskItemUi>> = _tasks.asStateFlow()
+    private val _memoryItems = MutableStateFlow<List<MemoryItemUi>>(emptyList())
+    val memoryItems: StateFlow<List<MemoryItemUi>> = _memoryItems.asStateFlow()
 
     fun setAuthStep(step: String) { _authStep.value = step; _authError.value = null }
 
     fun signup(email: String, pass: String) {
         viewModelScope.launch {
             _isLoading.value = true; _authError.value = null
-            repo.signup(email, pass).onSuccess { _authStep.value = "OTP" }.onFailure { _authError.value = it.message; _isLoading.value = false }
+            repo.signup(email, pass).onSuccess { 
+                _authStep.value = "OTP"
+                _isLoading.value = false 
+            }.onFailure { 
+                _authError.value = it.message; _isLoading.value = false 
+            }
         }
     }
 
     fun verifyOtp(email: String, otp: String) {
         viewModelScope.launch {
             _isLoading.value = true; _authError.value = null
-            repo.verifyOtp(email, otp).onSuccess { _authStep.value = "LOGIN"; _authError.value = "Verified! Please login." }.onFailure { _authError.value = it.message; _isLoading.value = false }
+            repo.verifyOtp(email, otp).onSuccess { 
+                _authStep.value = "LOGIN"; _authError.value = "Verified! Please login."
+                _isLoading.value = false 
+            }.onFailure { 
+                _authError.value = it.message; _isLoading.value = false 
+            }
         }
     }
-    
-    private val _isLoggedIn = MutableStateFlow(repo.tokenManager.getToken() != null)
-    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _statusBanner = MutableStateFlow<String?>(null)
-    val statusBanner: StateFlow<String?> = _statusBanner.asStateFlow()
-
-    private val _backendHealthy = MutableStateFlow(true)
-    val backendHealthy: StateFlow<Boolean> = _backendHealthy.asStateFlow()
-
-    val projects = listOf(ProjectUi("11111111-1111-1111-1111-111111111111", "Default Project"))
-    private val _selectedProject = MutableStateFlow(projects.first())
-    val selectedProject: StateFlow<ProjectUi> = _selectedProject.asStateFlow()
-
-    val skills = listOf(SkillUi("ai_admin", "AI Admin"), SkillUi("n8n_wf_builder", "WF Builder"))
-    private val _selectedSkill = MutableStateFlow(skills.first())
-    val selectedSkill: StateFlow<SkillUi> = _selectedSkill.asStateFlow()
-
-    private val _ceoMode = MutableStateFlow(false)
-    val ceoMode: StateFlow<Boolean> = _ceoMode.asStateFlow()
-
-    private val _useFastPath = MutableStateFlow(true)
-    val useFastPath: StateFlow<Boolean> = _useFastPath.asStateFlow()
-
-    private val _messages = MutableStateFlow(listOf(ChatMessageUi("welcome", "assistant", "Namaste! Main aapka BNAI Assistant (v3.0) hun.", "Ready", "verified", "system")))
-    val messages: StateFlow<List<ChatMessageUi>> = _messages.asStateFlow()
-    private var currentConversationId: String? = null
-
-    private val _isBuilding = MutableStateFlow(false)
-    val isBuilding: StateFlow<Boolean> = _isBuilding.asStateFlow()
-    private val _builderOutput = MutableStateFlow("")
-    val builderOutput: StateFlow<String> = _builderOutput.asStateFlow()
-
-    // NEW: Deploy State
-    private val _isDeploying = MutableStateFlow(false)
-    val isDeploying: StateFlow<Boolean> = _isDeploying.asStateFlow()
-    private val _lastGeneratedWfJson = MutableStateFlow<JsonObject?>(null)
-    val lastGeneratedWfJson: StateFlow<JsonObject?> = _lastGeneratedWfJson.asStateFlow()
-
-    private val _tasks = MutableStateFlow<List<TaskItemUi>>(emptyList())
-    val tasks: StateFlow<List<TaskItemUi>> = _tasks.asStateFlow()
-    
-    private val _memoryItems = MutableStateFlow<List<MemoryItemUi>>(emptyList())
-    val memoryItems: StateFlow<List<MemoryItemUi>> = _memoryItems.asStateFlow()
-
-    init { 
-        viewModelScope.launch { 
-            _backendHealthy.value = repo.checkBackendHealth() 
+    init {
+        viewModelScope.launch {
+            _backendHealthy.value = repo.checkBackendHealth()
             if (_isLoggedIn.value) {
                 loadTasks()
                 loadMemory("project")
             }
-        } 
+        }
     }
 
     fun login(email: String, pass: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            repo.login(email, pass).onSuccess { 
+            _authError.value = null
+            repo.login(email, pass).onSuccess {
                 _isLoggedIn.value = true
                 _isOwner.value = repo.tokenManager.getRole().lowercase().contains("owner")
                 _statusBanner.value = "Logged in as ${repo.tokenManager.getRole()}"
@@ -106,7 +115,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     _authStep.value = "OTP"
                     _authError.value = "Please verify your email OTP."
                 } else {
-                    _statusBanner.value = "Error: ${e.message}" 
+                    _authError.value = e.message
                 }
             }
             _isLoading.value = false
@@ -122,32 +131,26 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
             currentConversationId = null 
         }
     }
+
     fun clearBanner() { _statusBanner.value = null }
     fun selectProject(p: ProjectUi) { _selectedProject.value = p }
     fun selectSkill(s: SkillUi) { _selectedSkill.value = s }
     fun toggleCeoMode(enabled: Boolean) { _ceoMode.value = enabled }
     fun toggleFastPath(enabled: Boolean) { _useFastPath.value = enabled }
-
+    
     fun startNewChat() {
         currentConversationId = null
         _messages.value = listOf(ChatMessageUi("welcome", "assistant", "Nayi chat shuru! Main aapki kya madad kar sakta hoon?", "Now", "verified", "system"))
     }
-
     fun clearBuilder() {
         _builderOutput.value = ""
         _lastGeneratedWfJson.value = null
     }
-
     fun loadTasks() {
-        viewModelScope.launch {
-            repo.fetchTasks().onSuccess { _tasks.value = it }
-        }
+        viewModelScope.launch { repo.fetchTasks().onSuccess { _tasks.value = it } }
     }
-
     fun loadMemory(scope: String) {
-        viewModelScope.launch {
-            repo.fetchMemory(scope, _selectedProject.value.id).onSuccess { _memoryItems.value = it }
-        }
+        viewModelScope.launch { repo.fetchMemory(scope, _selectedProject.value.id).onSuccess { _memoryItems.value = it } }
     }
 
     private suspend fun simulateTypewriter(fullText: String, provider: String, verification: String) {
@@ -157,7 +160,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         for (char in fullText) {
             currentText += char
             _messages.value = _messages.value.map { if (it.id == tempId) it.copy(content = currentText) else it }
-            delay(8) 
+            delay(8)
         }
         _messages.value = _messages.value.map { if (it.id == tempId) it.copy(verificationStatus = verification, timestamp = "Just now") else it }
     }
@@ -165,28 +168,26 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
     fun sendChatMessage(userText: String) {
         if (userText.isBlank()) return
         _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "user", userText, "Now")
-        
         viewModelScope.launch {
             _isLoading.value = true
             val pid = _selectedProject.value.id
             val sk = _selectedSkill.value.key
             val ceo = _ceoMode.value
-
             if (_useFastPath.value) {
                 repo.sendFastChat(userText, pid, currentConversationId, sk, ceo).onSuccess { (msg, convId) ->
-                    if (convId != null) currentConversationId = convId
+                    if (convId != null) currentConversationId = convId                    
                     _isLoading.value = false
                     simulateTypewriter(msg.content, msg.provider, msg.verificationStatus)
-                }.onFailure { 
-                    _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "assistant", "Error: ${it.message}", "Now", "failed", "system", isError = true) 
+                }.onFailure {
+                    _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "assistant", "Error: ${it.message}", "Now", "failed", "system", isError = true)
                     _isLoading.value = false
                 }
             } else {
-                repo.sendGatewayChat(userText, pid, currentConversationId).onSuccess { 
+                repo.sendGatewayChat(userText, pid, currentConversationId).onSuccess {
                     _isLoading.value = false
                     simulateTypewriter(it.content, it.provider, it.verificationStatus)
-                }.onFailure { 
-                    _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "assistant", "Error: ${it.message}", "Now", "failed", "system", isError = true) 
+                }.onFailure {
+                    _messages.value = _messages.value + ChatMessageUi(UUID.randomUUID().toString(), "assistant", "Error: ${it.message}", "Now", "failed", "system", isError = true)
                     _isLoading.value = false
                 }
             }
@@ -199,7 +200,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         _builderOutput.value = "🚀 Starting Smart Hybrid Cycle...\n"
         _lastGeneratedWfJson.value = null
         val pid = _selectedProject.value.id
-
         viewModelScope.launch {
             try {
                 _builderOutput.value += "1. Generating Workflow via WF-02...\n"
@@ -207,46 +207,35 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     addProperty("requirements", requirements)
                     addProperty("target_n8n_version", "1.80.0")
                 }
-                
                 val genRes = repo.executeGatewayIntent("GENERATE_WORKFLOW", genPayload, pid)
                 if (genRes.isFailure) throw Exception("Generation failed: ${genRes.exceptionOrNull()?.message}")
-                
                 val childObj = genRes.getOrNull()?.result?.get("child_result")
                 if (childObj == null || !childObj.isJsonObject) throw Exception("Invalid response from backend.")
-                
                 val currentWfJson = childObj.asJsonObject.get("generated_workflow_json")
                 if (currentWfJson == null || !currentWfJson.isJsonObject) {
                     val errDetails = childObj.toString().take(300)
                     throw Exception("WF-02 failed. Details: $errDetails")
                 }
-                
                 var wfJsonObj = currentWfJson.asJsonObject
                 _builderOutput.value += "✅ Workflow Generated!\n\n"
-
                 var attempt = 0
                 var passed = false
                 var lastError = "Unknown Error"
-                
                 while (attempt < 5) {
                     attempt++
                     _builderOutput.value += "🔍 Attempt #${attempt} | Static Check (WF-04)...\n"
-                    
                     val valPayload = JsonObject().apply {
                         add("workflow_json", wfJsonObj)
                         addProperty("target_n8n_version", "1.80.0")
                     }
                     val valRes = repo.executeGatewayIntent("VALIDATE_WORKFLOW", valPayload, pid)
                     val valChild = valRes.getOrNull()?.result?.get("child_result")
-                    
                     val valStatus = if(valChild != null && valChild.isJsonObject) valChild.asJsonObject.get("validation_status")?.asString else "failed"
                     val failedTests = if(valChild != null && valChild.isJsonObject) valChild.asJsonObject.getAsJsonArray("failed_tests") else null
-                    
                     val staticPassed = (valStatus == "passed") || (valStatus == "partial" && (failedTests == null || failedTests.size() == 0))
-
                     if (staticPassed) {
                         _builderOutput.value += "✅ Static Check Passed. Moving to Real Sandbox...\n"
                         val testRes = repo.testWorkflow(wfJsonObj)
-                        
                         if (testRes.isSuccess) {
                             passed = true
                             _builderOutput.value += "✅ Real Sandbox Test Passed!\n\n"
@@ -259,12 +248,10 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                         lastError = failedTests?.toString() ?: "Static Validation Failed"
                         _builderOutput.value += "❌ Static Check Failed.\n"
                     }
-
                     if (attempt >= 5) {
                         _builderOutput.value += "❌ Max 5 attempts reached. Stopping Loop.\n"
                         break
                     }
-
                     _builderOutput.value += "🧠 Analyzing Error via WF-01...\n"
                     val debugPayload = JsonObject().apply {
                         add("workflow_json", wfJsonObj)
@@ -273,14 +260,12 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     }
                     val debugRes = repo.executeGatewayIntent("ANALYZE_WORKFLOW", debugPayload, pid)
                     val debugChild = debugRes.getOrNull()?.result?.get("child_result")
-                    
                     var analysisResult = "Fix the validation errors."
                     if (debugChild != null && debugChild.isJsonObject) {
                         val analysis = debugChild.asJsonObject.get("workflow_summary")
                         if (analysis != null && !analysis.isJsonNull) analysisResult = analysis.asString
                     }
                     _builderOutput.value += "📋 Root Cause: ${analysisResult.take(50)}...\n"
-
                     _builderOutput.value += "⚠️ Auto-repairing via WF-03...\n"
                     val updPayload = JsonObject().apply {
                         add("original_workflow_json", wfJsonObj)
@@ -288,7 +273,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     }
                     val updRes = repo.executeGatewayIntent("UPDATE_WORKFLOW", updPayload, pid)
                     val updChild = updRes.getOrNull()?.result?.get("child_result")
-                    
                     if (updChild != null && updChild.isJsonObject) {
                         val updatedWf = updChild.asJsonObject.get("updated_workflow_json")
                         if (updatedWf != null && updatedWf.isJsonObject) {
@@ -302,7 +286,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                         break
                     }
                 }
-
                 if (passed) {
                     _lastGeneratedWfJson.value = wfJsonObj
                     _builderOutput.value += "\n--- FINAL PRODUCTION WORKFLOW JSON ---\n"
@@ -323,7 +306,6 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
                     _builderOutput.value += "[2] Edit Manually (Coming Soon)\n"
                     _builderOutput.value += "[3] Save as Draft"
                 }
-
             } catch (e: Exception) {
                 _builderOutput.value += "\n❌ SYSTEM ERROR: ${e.message}"
             } finally {
@@ -332,21 +314,16 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         }
     }
 
-    // NEW: Deploy Function
     fun deployCurrentWorkflow() {
         val wfJson = _lastGeneratedWfJson.value ?: return
         _isDeploying.value = true
         _builderOutput.value += "\n\n🚀 Deploying to Live n8n...\n"
-
         viewModelScope.launch {
             repo.deployWorkflow(wfJson).onSuccess { msg ->
                 _builderOutput.value += "✅ $msg\n"
                 _builderOutput.value += "✅ Deployment Complete. This workflow is now LIVE!\n"
                 _statusBanner.value = "Workflow Deployed Successfully!"
-                
-                // CRITICAL FIX: Clear the JSON so the Deploy button disappears
                 _lastGeneratedWfJson.value = null
-                
             }.onFailure { err ->
                 _builderOutput.value += "❌ Deploy Failed: ${err.message}"
             }
