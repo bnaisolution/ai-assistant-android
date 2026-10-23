@@ -12,16 +12,15 @@ data class AuthResponse(val token: String?, @SerializedName("access_token") val 
 data class DynamicSkill(val key: String, val name: String, val description: String?, @SerializedName("owner_only") val ownerOnly: Boolean)
 data class SkillsResponse(val status: String, val skills: List<DynamicSkill>)
 
-// Exact mapping from provider_configs table
 data class AIModelConfig(
     val id: String, 
     @SerializedName("provider_name") val provider: String, 
     @SerializedName("model_default") val modelName: String, 
-    @SerializedName("is_enabled") val isActive: Boolean
+    @SerializedName("is_enabled") val isActive: Boolean,
+    val priority: Int = 3
 )
 data class ModelsResponse(val status: String, val models: List<AIModelConfig>)
 
-// Exact mapping from prompt_versions table
 data class PromptConfig(
     val id: String, 
     val name: String, 

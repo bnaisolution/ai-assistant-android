@@ -21,7 +21,7 @@ interface ApiService {
     
     @GET("api/v1/skills") suspend fun getSkills(): Response<SkillsResponse>
     @GET("api/v1/config/ai-models") suspend fun getAiModels(): Response<ModelsResponse>
-    @POST("api/v1/config/ai-models/toggle") suspend fun toggleAiModel(@Body request: JsonObject): Response<JsonObject>
+    @POST("api/v1/config/ai-models/update") suspend fun updateAiModel(@Body request: JsonObject): Response<JsonObject>
     @GET("api/v1/config/prompts") suspend fun getPrompts(): Response<PromptsResponse>
     @POST("api/v1/config/prompts/update") suspend fun updatePrompt(@Body request: JsonObject): Response<JsonObject>
     @POST("api/v1/user/byoi") suspend fun saveByoi(@Body request: JsonObject): Response<JsonObject>

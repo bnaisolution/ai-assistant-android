@@ -131,9 +131,49 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
         }
     }
 
-    fun toggleModel(id: String) { viewModelScope.launch { repo.toggleAiModel(id).onSuccess { loadConfigs() } } }
-    fun updatePrompt(skillKey: String, text: String) { viewModelScope.launch { repo.updatePrompt(skillKey, text).onSuccess { loadConfigs(); _statusBanner.value = "Prompt Updated" } } }
-    fun saveByoi(type: String, ep: String, key: String, model: String) { viewModelScope.launch { repo.saveByoi(type, ep, key, model).onSuccess { _statusBanner.value = "BYOI Saved" }.onFailure { _statusBanner.value = "BYOI Error: ${it.message}" } } }
+    fun setPrimaryModel(modelId: String) {
+        viewModelScope.launch {
+            aiModels.value.forEach { repo.updateAiModel(id = it.id, isEnabled = false) }
+            repo.updateAiModel(id = modelId, isEnabled = true, priority = 1).onSuccess { loadConfigs() }
+        }
+    }
+
+    fun setFallbackModel(modelId: String) {
+        viewModelScope.launch {
+            if (modelId.isEmpty()) {
+                aiModels.value.filter { it.priority == 2 }.forEach { repo.updateAiModel(id = it.id, isEnabled = false) }
+                loadConfigs()
+            } else {
+                repo.updateAiModel(id = modelId, isEnabled = true, priority = 2).onSuccess { loadConfigs() }
+            }
+        }
+    }
+
+    fun addNewProvider(name: String, model: String, baseUrl: String, apiKey: String) {
+        viewModelScope.launch {
+            repo.updateAiModel(name = name, model = model, baseUrl = baseUrl, apiKey = apiKey, priority = 3, isEnabled = false)
+                .onSuccess { loadConfigs(); _statusBanner.value = "Provider Added" }
+                .onFailure { _statusBanner.value = "Failed: ${it.message}" }
+        }
+    }
+
+    fun toggleModel(id: String, isEnabled: Boolean) { 
+        viewModelScope.launch { 
+            repo.updateAiModel(id = id, isEnabled = isEnabled).onSuccess { loadConfigs() } 
+        } 
+    }
+    
+    fun updatePrompt(skillKey: String, text: String) { 
+        viewModelScope.launch { 
+            repo.updatePrompt(skillKey, text).onSuccess { loadConfigs(); _statusBanner.value = "Prompt Updated" } 
+        } 
+    }
+    
+    fun saveByoi(type: String, ep: String, key: String, model: String) { 
+        viewModelScope.launch { 
+            repo.saveByoi(type, ep, key, model).onSuccess { _statusBanner.value = "Integration Saved" }.onFailure { _statusBanner.value = "Error: ${it.message}" } 
+        } 
+    }
     
     fun loadTasks() { viewModelScope.launch { repo.fetchTasks().onSuccess { _tasks.value = it } } }
     fun loadMemory(scope: String) { viewModelScope.launch { repo.fetchMemory(scope, _selectedProject.value.id).onSuccess { _memoryItems.value = it } } }

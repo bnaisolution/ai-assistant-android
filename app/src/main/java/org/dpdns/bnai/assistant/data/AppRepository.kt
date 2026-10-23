@@ -64,7 +64,6 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    // Updated BYOI to accept type
     suspend fun saveByoi(type: String, f1: String, f2: String, f3: String): Result<Boolean> {
         return try {
             val payload = JsonObject().apply { 
