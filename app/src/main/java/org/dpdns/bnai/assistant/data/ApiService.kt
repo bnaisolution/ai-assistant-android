@@ -19,6 +19,13 @@ interface ApiService {
     @POST("api/v1/auth/verify-otp") suspend fun verifyOtp(@Body request: VerifyOtpRequest): Response<JsonObject>
     @POST("api/v1/auth/logout") suspend fun logout(): Response<JsonObject>
     
+    @GET("api/v1/skills") suspend fun getSkills(): Response<SkillsResponse>
+    @GET("api/v1/config/ai-models") suspend fun getAiModels(): Response<ModelsResponse>
+    @POST("api/v1/config/ai-models/toggle") suspend fun toggleAiModel(@Body request: JsonObject): Response<JsonObject>
+    @GET("api/v1/config/prompts") suspend fun getPrompts(): Response<PromptsResponse>
+    @POST("api/v1/config/prompts/update") suspend fun updatePrompt(@Body request: JsonObject): Response<JsonObject>
+    @POST("api/v1/user/byoi") suspend fun saveByoi(@Body request: JsonObject): Response<JsonObject>
+
     @POST("api/v1/ai/chat") suspend fun fastChat(@Body request: FastChatRequest): Response<FastChatResponse>
     @POST("api/v1/ai/execute") suspend fun executeWorkflow(@Body request: GatewayExecuteRequest): Response<GatewayExecuteResponse>
     @GET("health") suspend fun checkHealth(): Response<JsonObject>
@@ -38,8 +45,7 @@ interface ApiService {
                 tokenManager.getToken()?.let { token -> if (token.isNotBlank()) builder.addHeader("Authorization", "Bearer $token") }
                 chain.proceed(builder.build())
             }
-            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-            val client = OkHttpClient.Builder().addInterceptor(authInterceptor).addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(190, TimeUnit.SECONDS).writeTimeout(30, TimeUnit.SECONDS).build()
+            val client = OkHttpClient.Builder().addInterceptor(authInterceptor).addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }).connectTimeout(30, TimeUnit.SECONDS).readTimeout(190, TimeUnit.SECONDS).build()
             return Retrofit.Builder().baseUrl(BuildConfig.BASE_API_URL).client(client).addConverterFactory(GsonConverterFactory.create()).build().create(ApiService::class.java)
         }
     }

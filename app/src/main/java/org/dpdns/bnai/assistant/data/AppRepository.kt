@@ -5,31 +5,77 @@ import java.util.UUID
 
 class AppRepository(private val api: ApiService, val tokenManager: TokenManager) {
     private fun newRequestId(): String = UUID.randomUUID().toString()
-
     private fun parseError(errBody: String?, defaultMsg: String): String {
         if (errBody == null) return defaultMsg
         return try {
             val json = com.google.gson.JsonParser.parseString(errBody).asJsonObject
             val errors = json.getAsJsonArray("errors")
-            if (errors != null && errors.size() > 0) {
-                errors[0].asJsonObject.get("message")?.asString ?: defaultMsg
-            } else defaultMsg
+            if (errors != null && errors.size() > 0) errors[0].asJsonObject.get("message")?.asString ?: defaultMsg else defaultMsg
         } catch (e: Exception) { defaultMsg }
+    }
+
+    suspend fun getSkills(): Result<List<DynamicSkill>> {
+        return try {
+            val resp = api.getSkills()
+            if (resp.isSuccessful && resp.body()?.status == "completed") Result.success(resp.body()?.skills ?: emptyList())
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Failed to load skills")))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun getAiModels(): Result<List<AIModelConfig>> {
+        return try {
+            val resp = api.getAiModels()
+            if (resp.isSuccessful && resp.body()?.status == "completed") Result.success(resp.body()?.models ?: emptyList())
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Failed to load models")))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun toggleAiModel(modelId: String): Result<Boolean> {
+        return try {
+            val payload = JsonObject().apply { addProperty("model_id", modelId) }
+            val resp = api.toggleAiModel(payload)
+            if (resp.isSuccessful) Result.success(true)
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Toggle failed")))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun getPrompts(): Result<List<PromptConfig>> {
+        return try {
+            val resp = api.getPrompts()
+            if (resp.isSuccessful && resp.body()?.status == "completed") Result.success(resp.body()?.prompts ?: emptyList())
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Failed to load prompts")))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun updatePrompt(skillKey: String, text: String): Result<Boolean> {
+        return try {
+            val payload = JsonObject().apply { addProperty("name", skillKey); addProperty("content", text) }
+            val resp = api.updatePrompt(payload)
+            if (resp.isSuccessful) Result.success(true)
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Update failed")))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun saveByoi(endpoint: String, apiKey: String, model: String): Result<Boolean> {
+        return try {
+            val payload = JsonObject().apply { addProperty("endpoint", endpoint); addProperty("api_key", apiKey); addProperty("model", model) }
+            val resp = api.saveByoi(payload)
+            if (resp.isSuccessful) Result.success(true)
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "BYOI failed")))
+        } catch (e: Exception) { Result.failure(e) }
     }
 
     suspend fun signup(email: String, pass: String): Result<String> {
         return try {
             val resp = api.signup(SignupRequest(email, pass))
-            if (resp.isSuccessful) Result.success("OTP Sent")
-            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Signup failed")))
+            if (resp.isSuccessful) Result.success("OTP Sent") else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Signup failed")))
         } catch (e: Exception) { Result.failure(e) }
     }
 
     suspend fun verifyOtp(email: String, otp: String): Result<Boolean> {
         return try {
             val resp = api.verifyOtp(VerifyOtpRequest(email, otp))
-            if (resp.isSuccessful) Result.success(true)
-            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Invalid OTP")))
+            if (resp.isSuccessful) Result.success(true) else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Invalid OTP")))
         } catch (e: Exception) { Result.failure(e) }
     }
 
@@ -48,11 +94,8 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                 Result.success(true)
             } else {
                 val errStr = resp.errorBody()?.string() ?: ""
-                if (resp.code() == 403 && errStr.contains("verify", ignoreCase = true)) {
-                    Result.failure(Exception("UNVERIFIED_USER"))
-                } else {
-                    Result.failure(Exception(parseError(errStr, "Login failed: HTTP ${resp.code()}")))
-                }
+                if (resp.code() == 403 && errStr.contains("verify", ignoreCase = true)) Result.failure(Exception("UNVERIFIED_USER"))
+                else Result.failure(Exception(parseError(errStr, "Login failed: HTTP ${resp.code()}")))
             }
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -66,7 +109,7 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                 val b = resp.body()!!
                 val msg = ChatMessageUi(reqId, "assistant", b.reply ?: b.message ?: "Verified response.", "Just now", b.verification?.status ?: "verified", b.provider ?: "groq")
                 Result.success(Pair(msg, b.conversationId))
-            } else { Result.failure(Exception(parseError(resp.errorBody()?.string(), "Fast Chat failed"))) }
+            } else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Fast Chat failed")))
         } catch (e: Exception) { Result.failure(e) }
     }
 
@@ -82,8 +125,8 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                     val child = b.result?.getAsJsonObject("child_result")
                     val text = child?.get("assistant_message")?.asString ?: "Gateway Success (No msg)"
                     Result.success(ChatMessageUi(reqId, "assistant", text, "Just now", b.verification?.status ?: "verified", "n8n-gateway"))
-                } else { Result.failure(Exception(b.errors?.firstOrNull()?.message ?: "Gateway Error")) }
-            } else { Result.failure(Exception(parseError(resp.errorBody()?.string(), "Gateway failed"))) }
+                } else Result.failure(Exception(b.errors?.firstOrNull()?.message ?: "Gateway Error"))
+            } else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Gateway failed")))
         } catch (e: Exception) { Result.failure(e) }
     }
 
@@ -111,8 +154,7 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
             val resp = api.testWorkflow(payload)
             if (resp.isSuccessful) {
                 val status = resp.body()?.get("status")?.toString()?.replace("\"", "")
-                if (status == "passed") Result.success(true)
-                else Result.failure(Exception(resp.body()?.get("error")?.toString()?.replace("\"", "") ?: "Sandbox Error"))
+                if (status == "passed") Result.success(true) else Result.failure(Exception(resp.body()?.get("error")?.toString()?.replace("\"", "") ?: "Sandbox Error"))
             } else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Sandbox Test Failed")))
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -165,8 +207,7 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
     suspend fun fetchOwnerDashboard(): Result<JsonObject> {
         return try {
             val resp = api.getOwnerDashboard()
-            if (resp.isSuccessful && resp.body() != null) Result.success(resp.body()!!)
-            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Owner Dashboard Failed")))
+            if (resp.isSuccessful && resp.body() != null) Result.success(resp.body()!!) else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Owner Dashboard Failed")))
         } catch (e: Exception) { Result.failure(e) }
     }
 
