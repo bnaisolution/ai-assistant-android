@@ -133,7 +133,7 @@ class MainViewModel(private val repo: AppRepository) : ViewModel() {
 
     fun toggleModel(id: String) { viewModelScope.launch { repo.toggleAiModel(id).onSuccess { loadConfigs() } } }
     fun updatePrompt(skillKey: String, text: String) { viewModelScope.launch { repo.updatePrompt(skillKey, text).onSuccess { loadConfigs(); _statusBanner.value = "Prompt Updated" } } }
-    fun saveByoi(ep: String, key: String, model: String) { viewModelScope.launch { repo.saveByoi(ep, key, model).onSuccess { _statusBanner.value = "BYOI Saved" }.onFailure { _statusBanner.value = "BYOI Error: ${it.message}" } } }
+    fun saveByoi(type: String, ep: String, key: String, model: String) { viewModelScope.launch { repo.saveByoi(type, ep, key, model).onSuccess { _statusBanner.value = "BYOI Saved" }.onFailure { _statusBanner.value = "BYOI Error: ${it.message}" } } }
     
     fun loadTasks() { viewModelScope.launch { repo.fetchTasks().onSuccess { _tasks.value = it } } }
     fun loadMemory(scope: String) { viewModelScope.launch { repo.fetchMemory(scope, _selectedProject.value.id).onSuccess { _memoryItems.value = it } } }

@@ -30,12 +30,20 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun toggleAiModel(modelId: String): Result<Boolean> {
+    suspend fun updateAiModel(id: String? = null, name: String? = null, model: String? = null, priority: Int? = null, isEnabled: Boolean? = null, baseUrl: String? = null, apiKey: String? = null): Result<Boolean> {
         return try {
-            val payload = JsonObject().apply { addProperty("model_id", modelId) }
-            val resp = api.toggleAiModel(payload)
+            val payload = JsonObject().apply {
+                if (id != null) addProperty("id", id)
+                if (name != null) addProperty("provider_name", name)
+                if (model != null) addProperty("model_default", model)
+                if (priority != null) addProperty("priority", priority)
+                if (isEnabled != null) addProperty("is_enabled", isEnabled)
+                if (baseUrl != null) addProperty("base_url", baseUrl)
+                if (apiKey != null) addProperty("api_key", apiKey)
+            }
+            val resp = api.updateAiModel(payload)
             if (resp.isSuccessful) Result.success(true)
-            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Toggle failed")))
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Update failed")))
         } catch (e: Exception) { Result.failure(e) }
     }
 
@@ -56,12 +64,18 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun saveByoi(endpoint: String, apiKey: String, model: String): Result<Boolean> {
+    // Updated BYOI to accept type
+    suspend fun saveByoi(type: String, f1: String, f2: String, f3: String): Result<Boolean> {
         return try {
-            val payload = JsonObject().apply { addProperty("endpoint", endpoint); addProperty("api_key", apiKey); addProperty("model", model) }
+            val payload = JsonObject().apply { 
+                addProperty("integration_type", type)
+                addProperty("endpoint", f1)
+                addProperty("api_key", f2)
+                addProperty("model", f3) 
+            }
             val resp = api.saveByoi(payload)
             if (resp.isSuccessful) Result.success(true)
-            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "BYOI failed")))
+            else Result.failure(Exception(parseError(resp.errorBody()?.string(), "Save failed")))
         } catch (e: Exception) { Result.failure(e) }
     }
 
