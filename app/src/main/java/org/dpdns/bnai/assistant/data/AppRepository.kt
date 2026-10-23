@@ -23,7 +23,7 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         } catch (e: Exception) { defaultMsg }
     }
 
-    fun streamFastChat(message: String, projectId: String?, convId: String?, skillKey: String, ceoMode: Boolean, fileContext: String?): Flow<String> = callbackFlow {
+        fun streamFastChat(message: String, projectId: String?, convId: String?, skillKey: String, ceoMode: Boolean, fileContext: String?): Flow<StreamEvent> = callbackFlow {
         val client = OkHttpClient.Builder().build()
         val json = JsonObject().apply { 
             addProperty("message", message)
@@ -44,7 +44,7 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: java.io.IOException) { close(e) }
             override fun onResponse(call: Call, response: Response) {
-                if (!response.isSuccessful) { close(Exception("HTTP ${response.code}")); return }
+                if (!response.isSuccessful) { close(Exception("HTTP ${response.statusCode}")); return }
                 val source = response.body?.source() ?: return
                 try { 
                     while (!source.exhausted()) { 
@@ -52,7 +52,12 @@ class AppRepository(private val api: ApiService, val tokenManager: TokenManager)
                         if (line.startsWith("data: ") && line != "data: [DONE]") { 
                             try { 
                                 val chunk = JsonParser.parseString(line.substring(6).trim()).asJsonObject
-                                chunk.getAsJsonArray("choices")?.get(0)?.asJsonObject?.getAsJsonObject("delta")?.get("content")?.asString?.let { trySend(it) } 
+                                if (chunk.has("conv_id")) {
+                                    trySend(StreamEvent(convId = chunk.get("conv_id").asString))
+                                } else if (chunk.has("choices")) {
+                                    val content = chunk.getAsJsonArray("choices")?.get(0)?.asJsonObject?.getAsJsonObject("delta")?.get("content")?.asString
+                                    if (content != null) trySend(StreamEvent(text = content))
+                                }
                             } catch (e: Exception) {} 
                         } 
                     }
