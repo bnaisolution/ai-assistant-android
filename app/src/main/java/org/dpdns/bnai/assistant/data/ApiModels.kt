@@ -31,3 +31,5 @@ data class HistoryResponse(val status: String, val conversations: List<Conversat
 data class TaskItemUi(val id: String, val title: String, val goal: String = "", val status: String, val priority: String, val approvalToken: String? = null, val actionType: String? = null, val resourceType: String? = null, val resourceId: String? = null, val cancelEligible: Boolean = true, val retryEligible: Boolean = false, val createdAt: String = "", val updatedAt: String = "")
 data class MemoryItemUi(val id: String, val scope: String, val key: String?, val content: String, val category: String, val knowledgeStatus: String = "", val confidence: Double? = null, val createdAt: String = "")
 data class MemoryWriteRequest(val scope: String, val key: String?, val content: String, val category: String, @SerializedName("project_id") val projectId: String? = null)
+
+data class StreamEvent(val text: String? = null, val convId: String? = null)
