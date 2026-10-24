@@ -50,7 +50,7 @@ interface ApiService {
     suspend fun getIncidents(): retrofit2.Response<List<Incident>>
 
     @retrofit2.http.POST("api/incidents/{id}/acknowledge")
-    suspend fun acknowledgeIncident(@retrofit2.http.Path("id") id: String): retrofit2.Response<Unit>
+    suspend fun acknowledgeIncident(@retrofit2.http.Path("id") id: String, @retrofit2.http.Body body: Map<String, String> = emptyMap()): retrofit2.Response<Unit>
 }
 
 data class Incident(
