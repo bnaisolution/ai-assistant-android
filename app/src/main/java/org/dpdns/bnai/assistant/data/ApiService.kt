@@ -45,4 +45,18 @@ interface ApiService {
             return Retrofit.Builder().baseUrl(BuildConfig.BASE_API_URL).client(client).addConverterFactory(GsonConverterFactory.create()).build().create(ApiService::class.java)
         }
     }
+
+    @retrofit2.http.GET("api/incidents")
+    suspend fun getIncidents(): retrofit2.Response<List<Incident>>
+
+    @retrofit2.http.POST("api/incidents/{id}/acknowledge")
+    suspend fun acknowledgeIncident(@retrofit2.http.Path("id") id: String): retrofit2.Response<Unit>
 }
+
+data class Incident(
+    val id: String,
+    val error_type: String,
+    val error_message: String,
+    val recovery_status: String,
+    val created_at: String
+)
