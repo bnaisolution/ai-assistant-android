@@ -25,12 +25,10 @@ class CrashHandler(private val context: Context) : Thread.UncaughtExceptionHandl
 
     private fun saveCrashToPrefs(message: String, stackTrace: String) {
         val prefs = context.getSharedPreferences("crash_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("last_crash", message + "
-" + stackTrace).apply()
+        prefs.edit().putString("last_crash", message + System.lineSeparator() + stackTrace).apply()
     }
 
     private fun sendCrashToServer(message: String, stackTrace: String) {
-        // ASSUMPTION: Replace with your actual backend base URL
         val retrofit = Retrofit.Builder()
             .baseUrl("https://api.yourdomain.com/")
             .addConverterFactory(GsonConverterFactory.create())
