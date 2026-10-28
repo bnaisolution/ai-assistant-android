@@ -1,162 +1,138 @@
 package org.dpdns.bnai.assistant
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import org.dpdns.bnai.assistant.data.ApiService
 import org.dpdns.bnai.assistant.data.AppRepository
 import org.dpdns.bnai.assistant.data.TokenManager
-import org.dpdns.bnai.assistant.data.Incident
-import org.dpdns.bnai.assistant.crash.CrashHandler
 import org.dpdns.bnai.assistant.ui.*
 import org.dpdns.bnai.assistant.viewmodel.MainViewModel
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Thread.setDefaultUncaughtExceptionHandler(CrashHandler(applicationContext))
         val tokenManager = TokenManager(applicationContext)
         val apiService = ApiService.create(tokenManager)
         val repository = AppRepository(apiService, tokenManager)
         val mainViewModel = MainViewModel(repository)
+
         setContent {
             BnaiTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainAppScaffold(viewModel = mainViewModel, apiService = apiService)
+                    MainAppScaffold(viewModel = mainViewModel)
                 }
             }
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppScaffold(viewModel: MainViewModel, apiService: ApiService) {
+fun MainAppScaffold(viewModel: MainViewModel) {
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
-    val isOwner by viewModel.isOwner.collectAsState()
-    var currentTab by remember { mutableIntStateOf(0) }
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    val history by viewModel.history.collectAsState()
-    val skills by viewModel.skills.collectAsState()
-    val selectedSkill by viewModel.selectedSkill.collectAsState()
-    val useFastPath by viewModel.useFastPath.collectAsState()
-    val ceoMode by viewModel.ceoMode.collectAsState()
-    LaunchedEffect(isLoggedIn) { if (!isLoggedIn) currentTab = 0 }
+    val selectedProject by viewModel.selectedProject.collectAsState()
+    val statusBanner by viewModel.statusBanner.collectAsState()
+    var activeScreen by remember { mutableStateOf("HOME") }
+
     if (!isLoggedIn) {
         AuthScreen(viewModel = viewModel)
         return
     }
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.width(320.dp)) {
-                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
                     Column {
-                        Text("Neeraj (Owner)", fontWeight = FontWeight.Bold)
-                        Text("admin@example.com", fontSize = 12.sp)
+                        Text("BNAI Unified v3.1", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "Project: ${selectedProject.namespace} • Screen: $activeScreen", fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
                     }
+                },
+                actions = {
+                    TextButton(onClick = { viewModel.logout() }) { Text("Logout", color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                 }
-                TextButton(onClick = { viewModel.logout() }, modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Icon(Icons.Default.ExitToApp, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Logout", color = MaterialTheme.colorScheme.error)
-                }
-                Divider()
-                TextButton(onClick = { viewModel.startNewChat(); currentTab = 0; scope.launch { drawerState.close() } }, modifier = Modifier.padding(16.dp)) {
-                    Icon(Icons.Default.Add, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("New Chat", fontWeight = FontWeight.Bold)
-                }
-                Divider()
-                Text("History", modifier = Modifier.padding(16.dp, 8.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(history) { conv ->
-                        ListItem(
-                            headlineContent = { Text(conv.title, maxLines = 1) },
-                            modifier = Modifier.clickable { viewModel.loadConversation(conv.id); currentTab = 0; scope.launch { drawerState.close() } }
-                        )
-                    }
-                }
-                Divider()
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Settings", fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = useFastPath, onCheckedChange = { viewModel.toggleFastPath(it) })
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Fast AI Mode", fontSize = 12.sp)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = ceoMode, onCheckedChange = { viewModel.toggleCeoMode(it) })
-                        Text("CEO Mode", fontSize = 12.sp)
-                    }
-                    Text("Active Skill: \${selectedSkill.name}", fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(selected = activeScreen == "HOME", onClick = { activeScreen = "HOME" }, icon = { Icon(Icons.Default.Home, contentDescription = "Home") }, label = { Text("Home") })
+                NavigationBarItem(selected = activeScreen == "CHAT", onClick = { activeScreen = "CHAT" }, icon = { Icon(Icons.Default.Chat, contentDescription = "Chat") }, label = { Text("Chat") })
+                NavigationBarItem(selected = activeScreen in listOf("PROJECTS", "CINEMATIC", "WF_BUILDER"), onClick = { activeScreen = "PROJECTS" }, icon = { Icon(Icons.Default.Folder, contentDescription = "Projects") }, label = { Text("Projects") })
+                NavigationBarItem(selected = activeScreen == "TASKS", onClick = { activeScreen = "TASKS" }, icon = { Icon(Icons.Default.CheckCircle, contentDescription = "Tasks") }, label = { Text("Tasks") })
+                NavigationBarItem(selected = activeScreen in listOf("MORE", "COPILOT", "MEMORY", "FILES_NOTIFS", "OWNER"), onClick = { activeScreen = "MORE" }, icon = { Icon(Icons.Default.MoreHoriz, contentDescription = "More") }, label = { Text("More") })
             }
         }
-    ) {
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
-                    NavigationBarItem(selected = currentTab == 0, onClick = { currentTab = 0 }, icon = { Icon(Icons.Default.Chat, null) }, label = { Text("Chat") })
-                    if (isOwner) NavigationBarItem(selected = currentTab == 1, onClick = { currentTab = 1 }, icon = { Icon(Icons.Default.Build, null) }, label = { Text("Builder") })
-                    NavigationBarItem(selected = currentTab == 2, onClick = { currentTab = 2 }, icon = { Icon(Icons.Default.CheckCircle, null) }, label = { Text("Tasks") })
-                    NavigationBarItem(selected = currentTab == 3, onClick = { currentTab = 3 }, icon = { Icon(Icons.Default.Storage, null) }, label = { Text("Memory") })
-                    if (isOwner) NavigationBarItem(selected = currentTab == 4, onClick = { currentTab = 4 }, icon = { Icon(Icons.Default.Security, null) }, label = { Text("Owner") })
-                    NavigationBarItem(selected = currentTab == 5, onClick = { currentTab = 5 }, icon = { Icon(Icons.Default.Warning, null) }, label = { Text("Incidents") })
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            statusBanner?.let { banner ->
+                Surface(color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(banner, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { viewModel.clearBanner() }) { Text("OK", fontSize = 11.sp) }
+                    }
                 }
             }
-        ) { innerPadding ->
-            Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                when (currentTab) {
-                    0 -> ChatAndSkillsScreen(viewModel, onOpenDrawer = { scope.launch { drawerState.open() } })
-                    1 -> if (isOwner) WorkflowBuilderScreen(viewModel) else ChatAndSkillsScreen(viewModel, onOpenDrawer = { scope.launch { drawerState.open() } })
-                    2 -> TasksAndApprovalsScreen(viewModel)
-                    3 -> MemoryAndPrivacyScreen(viewModel)
-                    4 -> if (isOwner) OwnerAdminScreen(viewModel) else ChatAndSkillsScreen(viewModel, onOpenDrawer = { scope.launch { drawerState.open() } })
-                    5 -> IncidentCenterWrapper(apiService)
+
+            when (activeScreen) {
+                "HOME" -> HomeDashboardScreen(viewModel = viewModel, onNavigateToSection = { dest -> activeScreen = dest })
+                "CHAT" -> ChatAndSkillsScreen(viewModel = viewModel)
+                "PROJECTS" -> ProjectsHubScreen(viewModel = viewModel, onNavigate = { dest -> activeScreen = dest })
+                "CINEMATIC" -> CinematicStudioScreen(viewModel = viewModel, onOpenCopilotWithContext = { activeScreen = "COPILOT" })
+                "WF_BUILDER" -> WorkflowBuilderScreen(viewModel = viewModel)
+                "TASKS" -> TasksAndApprovalsScreen(viewModel = viewModel)
+                "COPILOT" -> CopilotAndDiagnosticsScreen(viewModel = viewModel)
+                "MEMORY" -> MemoryAndPrivacyScreen(viewModel = viewModel)
+                "FILES_NOTIFS" -> FilesAndNotificationsScreen(viewModel = viewModel)
+                "OWNER" -> OwnerAdminScreen(viewModel = viewModel)
+                "MORE" -> MoreMenuScreen(onSelectDestination = { dest -> activeScreen = dest })
+            }
+        }
+    }
+}
+
+@Composable
+fun ProjectsHubScreen(viewModel: MainViewModel, onNavigate: (String) -> Unit) {
+    val selectedProject by viewModel.selectedProject.collectAsState()
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Two Logical Projects Hub", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        viewModel.projects.forEach { proj ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${proj.name} [${proj.namespace}]", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(proj.description, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { viewModel.selectProject(proj) }) { Text(if (selectedProject.id == proj.id) "Active Context" else "Switch Context") }
+                        if (proj.namespace == "Assistant") {
+                            OutlinedButton(onClick = { onNavigate("WF_BUILDER") }) { Text("Open WF Builder") }
+                        } else {
+                            OutlinedButton(onClick = { onNavigate("CINEMATIC") }) { Text("Open Cinematic Studio") }
+                        }
+                    }
                 }
             }
         }
     }
 }
+
 @Composable
-fun IncidentCenterWrapper(apiService: ApiService) {
-    var incidents by remember { mutableStateOf<List<Incident>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
-        try {
-            val response = apiService.getIncidents()
-            if (response.isSuccessful) {
-                incidents = response.body() ?: emptyList()
-            }
-        } catch (e: Exception) {}
-        isLoading = false
+fun MoreMenuScreen(onSelectDestination: (String) -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("More Capabilities", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Button(onClick = { onSelectDestination("COPILOT") }, modifier = Modifier.fillMaxWidth()) { Text("AI Copilot, Inspector, Diff, Sandbox & Recovery") }
+        Button(onClick = { onSelectDestination("CINEMATIC") }, modifier = Modifier.fillMaxWidth()) { Text("Project B — AI Cinematic Studio") }
+        Button(onClick = { onSelectDestination("WF_BUILDER") }, modifier = Modifier.fillMaxWidth()) { Text("Project A — n8n Workflow Builder") }
+        Button(onClick = { onSelectDestination("MEMORY") }, modifier = Modifier.fillMaxWidth()) { Text("7-Layer Scoped Memory & Data Privacy") }
+        Button(onClick = { onSelectDestination("FILES_NOTIFS") }, modifier = Modifier.fillMaxWidth()) { Text("Files, Exports, Notifications & Audit") }
+        Button(onClick = { onSelectDestination("OWNER") }, modifier = Modifier.fillMaxWidth()) { Text("Owner Admin Governance Console") }
     }
-    IncidentCenterScreen(
-        incidents = incidents,
-        onAcknowledge = { id ->
-            scope.launch {
-                try {
-                    apiService.acknowledgeIncident(id)
-                    incidents = incidents.filter { it.id != id }
-                } catch (e: Exception) {}
-            }
-        },
-        isLoading = isLoading
-    )
 }
